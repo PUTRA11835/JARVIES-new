@@ -65,6 +65,9 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/tickets/{id}', [TicketController::class, 'showMyTicket'])->name('tickets.show')->whereNumber('id');
     });
 
+    // ==================== ONBOARDING ====================
+    Route::get('/onboarding/connect-email', [OAuthEmailController::class, 'onboarding'])->name('onboarding.connect-email');
+
     // ==================== OAUTH EMAIL LINKING ====================
     Route::prefix('oauth/email')->name('oauth.email.')->group(function () {
         Route::get('/status', [OAuthEmailController::class, 'status'])->name('status');

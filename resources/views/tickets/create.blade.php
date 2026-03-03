@@ -104,9 +104,8 @@
             {{-- Bottom Toolbar --}}
             <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
 
-                {{-- Send Button — disabled until email is linked --}}
-                <button type="submit" id="sendBtn" disabled
-                    title="Link your email first"
+                {{-- Send Button --}}
+                <button type="submit" id="sendBtn"
                     class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600">
                     <svg id="sendIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
@@ -332,7 +331,6 @@ document.getElementById('confirmOkBtn').addEventListener('click',     () => reso
 let emailLinked = false;
 
 async function loadEmailStatus() {
-    const sendBtn = document.getElementById('sendBtn');
     try {
         const res  = await fetch('{{ route("oauth.email.status") }}');
         const data = await res.json();
@@ -357,28 +355,22 @@ async function loadEmailStatus() {
 
             changeBtn.classList.remove('hidden');
             disconnectBtn.classList.remove('hidden');
-
-            sendBtn.disabled = false;
-            sendBtn.title    = '';
         } else {
             emailLinked = false;
 
+            // Tampilkan info opsional — tidak memblokir submit
             statusEl.innerHTML = `
-                <div class="inline-flex items-center gap-1.5 bg-red-50 text-red-600 text-xs px-3 py-1 rounded-full border border-red-200 cursor-pointer hover:bg-red-100 transition-colors" onclick="openOAuthModal()">
+                <div class="inline-flex items-center gap-1.5 text-gray-400 text-xs">
                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
-                    Link email terlebih dahulu untuk dapat mengirim ticket
+                    <span>Tidak ada email terhubung — ticket akan dibuat tanpa email</span>
                 </div>`;
 
             linkBtn.classList.remove('hidden');
-
-            sendBtn.disabled = true;
-            sendBtn.title    = 'Link your email account first';
         }
     } catch (err) {
         console.error('Failed to load email status', err);
-        sendBtn.disabled = true;
     }
 }
 
@@ -422,12 +414,6 @@ async function discardTicket() {
 // ===== Form Submit =====
 document.getElementById('composeForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-
-    if (!emailLinked) {
-        showAlert('Hubungkan akun email Anda terlebih dahulu untuk mengirim tiket.', 'warning', 'Email Belum Terhubung');
-        openOAuthModal();
-        return;
-    }
 
     const subject  = document.getElementById('subject').value.trim();
     const body     = document.getElementById('body').value.trim();
@@ -481,7 +467,8 @@ document.getElementById('composeForm').addEventListener('submit', async function
 });
 
 function setLoading(loading) {
-    document.getElementById('sendBtn').disabled     = loading;
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = loading;
     document.getElementById('sendIcon').classList.toggle('hidden', loading);
     document.getElementById('sendSpinner').classList.toggle('hidden', !loading);
     document.getElementById('sendText').textContent = loading ? 'Sending...' : 'Send';

@@ -39,17 +39,31 @@ class OAuthEmailController extends Controller
     }
 
     /**
+     * GET /onboarding/connect-email
+     * Halaman onboarding untuk menghubungkan email OAuth (setelah setup password pertama kali).
+     */
+    public function onboarding(Request $request)
+    {
+        return view('onboarding.connect-email');
+    }
+
+    /**
      * GET /oauth/email/redirect/{provider}
      * Kick off the OAuth flow for the given provider.
+     * Query param ?return=/path digunakan untuk redirect setelah callback.
      */
-    public function redirect(string $provider)
+    public function redirect(Request $request, string $provider)
     {
         if (!in_array($provider, self::ALLOWED_PROVIDERS)) {
             abort(404);
         }
 
-        // Store return intent in session
-        session(['oauth_email_intent' => 'link_email', 'oauth_email_provider' => $provider]);
+        // Store return intent and redirect destination in session
+        session([
+            'oauth_email_intent'   => 'link_email',
+            'oauth_email_provider' => $provider,
+            'oauth_email_return'   => $request->query('return', route('dashboard')),
+        ]);
 
         return match ($provider) {
             'google' => Socialite::driver('google')
@@ -101,10 +115,11 @@ class OAuthEmailController extends Controller
                 'email'       => $socialUser->getEmail(),
             ]);
 
-            session()->forget(['oauth_email_intent', 'oauth_email_provider']);
+            $returnTo = session('oauth_email_return', route('dashboard'));
+            session()->forget(['oauth_email_intent', 'oauth_email_provider', 'oauth_email_return']);
 
-            return redirect()->route('tickets.create')
-                ->with('oauth_success', "Your {$provider} account has been linked successfully.");
+            return redirect($returnTo)
+                ->with('oauth_success', "Akun {$provider} berhasil dihubungkan.");
 
         } catch (\Throwable $e) {
             Log::error('OAuthEmailController@callback failed', [
@@ -112,8 +127,11 @@ class OAuthEmailController extends Controller
                 'error'    => $e->getMessage(),
             ]);
 
-            return redirect()->route('tickets.create')
-                ->with('oauth_error', 'Failed to link account: ' . $e->getMessage());
+            $returnTo = session('oauth_email_return', route('dashboard'));
+            session()->forget(['oauth_email_intent', 'oauth_email_provider', 'oauth_email_return']);
+
+            return redirect($returnTo)
+                ->with('oauth_error', 'Gagal menghubungkan akun: ' . $e->getMessage());
         }
     }
 

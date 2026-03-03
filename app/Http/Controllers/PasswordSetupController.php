@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -85,6 +86,42 @@ class PasswordSetupController extends Controller
             'auth_user_id' => $authUser->id,
         ]);
 
+        // Jika customer → auto-login dan arahkan ke halaman onboarding connect email
+        if ($authUser->customer_id) {
+            $customer = Customer::with('basicData')
+                ->where('customer_id', $authUser->customer_id)
+                ->first();
+
+            if ($customer) {
+                $companyName = $customer->basicData->name_1
+                    ?? $customer->basicData->first_name
+                    ?? $authUser->email;
+
+                $token    = base64_encode($customer->customer_code . '|' . time() . '|customer');
+                $userData = [
+                    'id'            => $customer->customer_id,
+                    'type'          => 'customer',
+                    'customer_code' => $customer->customer_code,
+                    'company_name'  => $companyName,
+                    'email'         => $authUser->email,
+                    'category'      => $customer->customer_category ?? null,
+                    'group'         => $customer->customer_group ?? null,
+                    'role'          => ['id' => 3, 'name' => 'Customer'],
+                ];
+
+                $request->session()->put('auth_token', $token);
+                $request->session()->put('user', $userData);
+                $request->session()->regenerate();
+
+                Log::info('PasswordSetupController: auto-login customer setelah setup password', [
+                    'customer_id' => $customer->customer_id,
+                ]);
+
+                return redirect()->route('onboarding.connect-email');
+            }
+        }
+
+        // Employee atau customer tidak ditemukan → redirect ke login seperti biasa
         return redirect()->route('login')
             ->with('success', 'Password berhasil diatur. Silakan login dengan password baru Anda.');
     }
