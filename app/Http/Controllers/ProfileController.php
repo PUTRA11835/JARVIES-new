@@ -6,11 +6,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use App\Models\Customer;
 
 class ProfileController extends Controller
 {
     /**
-     * Tampilkan halaman profil user yang sedang login.
+     * Show the customer profile page (read-only).
      */
     public function edit(Request $request)
     {
@@ -20,6 +21,37 @@ class ProfileController extends Controller
             return redirect()->route('login');
         }
 
+        if (($sessionUser['type'] ?? null) !== 'customer') {
+            return redirect()->route('dashboard');
+        }
+
+        $customer = Customer::with([
+            'basicData',
+            'contact',
+            'addresses',
+            'identifications',
+            'banks',
+            'attachments',
+        ])->find($sessionUser['id']);
+
+        if (!$customer) {
+            return redirect()->route('dashboard')->with('error', 'Profile not found.');
+        }
+
+        $authUser = DB::table('auth_users')
+            ->where('customer_id', $sessionUser['id'])
+            ->select('id', 'email', 'phone', 'username', 'last_login_at', 'created_at')
+            ->first();
+
+        return view('profile.customer.show', compact('customer', 'authUser'));
+    }
+
+    /**
+     * @deprecated - kept for reference only, not reachable via routes.
+     */
+    private function _editLegacy(Request $request)
+    {
+        $sessionUser = session('user');
         $type    = $sessionUser['type'] ?? null;
         $profile = null;
 
@@ -100,7 +132,7 @@ class ProfileController extends Controller
     }
 
     /**
-     * Ganti password — dipanggil via AJAX, kembalikan JSON.
+     * Change password via AJAX — returns JSON.
      */
     public function changePassword(Request $request)
     {
@@ -129,14 +161,14 @@ class ProfileController extends Controller
             ->first();
 
         if (!$authUser) {
-            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan'], 404);
+            return response()->json(['success' => false, 'message' => 'Account not found.'], 404);
         }
 
         if (!Hash::check($request->current_password, $authUser->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Password lama tidak sesuai',
-                'errors'  => ['current_password' => ['Password lama tidak sesuai']],
+                'message' => 'Current password is incorrect.',
+                'errors'  => ['current_password' => ['Current password is incorrect.']],
             ], 422);
         }
 
@@ -145,14 +177,14 @@ class ProfileController extends Controller
             'updated_at' => now(),
         ]);
 
-        Log::info('ProfileController: password berhasil diubah', [
+        Log::info('ProfileController: password changed', [
             'auth_user_id' => $authUser->id,
             'type'         => $type,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Password berhasil diubah',
+            'message' => 'Password updated successfully.',
         ]);
     }
 }

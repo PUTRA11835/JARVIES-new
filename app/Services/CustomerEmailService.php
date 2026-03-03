@@ -21,32 +21,34 @@ class CustomerEmailService
     /**
      * Send an email using the customer's linked OAuth account.
      *
-     * @param  CustomerEmailToken  $token   The stored OAuth token record
-     * @param  string              $toEmail Recipient email address
-     * @param  string              $subject Email subject
-     * @param  string              $body    Plain-text body
-     * @return bool                True on success, false on failure
+     * @param  CustomerEmailToken  $token     The stored OAuth token record
+     * @param  string              $toEmail   Recipient email address
+     * @param  string              $subject   Email subject
+     * @param  string              $body      Plain-text body
+     * @param  string|null         $threadId  Gmail threadId to reply in same thread (optional)
+     * @return string|null         threadId on success (Google), 'azure_sent' for Azure, null on failure
      */
-    public function sendEmail(CustomerEmailToken $token, string $toEmail, string $subject, string $body): bool
+    public function sendEmail(CustomerEmailToken $token, string $toEmail, string $subject, string $body, ?string $threadId = null): ?string
     {
         try {
             $accessToken = $this->getValidAccessToken($token);
 
             if ($token->provider === 'google') {
-                return $this->sendViaGmail($accessToken, $token->provider_email, $toEmail, $subject, $body);
+                return $this->sendViaGmail($accessToken, $token->provider_email, $toEmail, $subject, $body, $threadId);
             } elseif ($token->provider === 'azure') {
-                return $this->sendViaMicrosoftGraph($accessToken, $toEmail, $subject, $body);
+                $ok = $this->sendViaMicrosoftGraph($accessToken, $toEmail, $subject, $body);
+                return $ok ? 'azure_sent' : null;
             }
 
             Log::warning('CustomerEmailService: unknown provider', ['provider' => $token->provider]);
-            return false;
+            return null;
 
         } catch (\Throwable $e) {
             Log::error('CustomerEmailService@sendEmail failed', [
                 'provider'   => $token->provider,
                 'error'      => $e->getMessage(),
             ]);
-            return false;
+            return null;
         }
     }
 
@@ -56,26 +58,31 @@ class CustomerEmailService
 
     /**
      * Send email via Gmail API using RFC 2822 raw message.
+     * Returns the Gmail threadId on success, null on failure.
      */
-    private function sendViaGmail(string $accessToken, string $fromEmail, string $toEmail, string $subject, string $body): bool
+    private function sendViaGmail(string $accessToken, string $fromEmail, string $toEmail, string $subject, string $body, ?string $threadId = null): ?string
     {
         $raw = $this->buildRfc2822Message($fromEmail, $toEmail, $subject, $body);
 
+        $payload = ['raw' => $raw];
+        if ($threadId) {
+            $payload['threadId'] = $threadId;
+        }
+
         $response = Http::withToken($accessToken)
-            ->post('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', [
-                'raw' => $raw,
-            ]);
+            ->post('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', $payload);
 
         if ($response->successful()) {
-            Log::info('CustomerEmailService: Gmail send OK', ['to' => $toEmail]);
-            return true;
+            $returnedThreadId = $response->json('threadId');
+            Log::info('CustomerEmailService: Gmail send OK', ['to' => $toEmail, 'threadId' => $returnedThreadId]);
+            return $returnedThreadId;
         }
 
         Log::error('CustomerEmailService: Gmail send failed', [
             'status' => $response->status(),
             'body'   => $response->body(),
         ]);
-        return false;
+        return null;
     }
 
     /**

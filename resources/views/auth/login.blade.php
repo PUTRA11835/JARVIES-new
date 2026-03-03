@@ -331,10 +331,10 @@
                 }
 
                 // Tampilkan pesan error dari server
-                showAlert(data.message || 'Login gagal. Periksa kembali identifikasi dan password Anda.');
+                showAlert(data.message || 'Login failed. Please check your credentials and try again.');
 
             } catch (err) {
-                showAlert('Terjadi kesalahan jaringan. Silakan coba lagi.');
+                showAlert('A network error occurred. Please try again.');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalHTML;

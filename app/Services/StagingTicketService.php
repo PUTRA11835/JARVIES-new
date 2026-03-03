@@ -29,6 +29,7 @@ class StagingTicketService
         $staging = StagingTicket::create([
             'customer_id'        => $customerId,
             'description'        => $data['description'],
+            'body'               => $data['body'] ?? null,
             'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
             'status'             => 'unvalidated',
             'channel'            => 'web',

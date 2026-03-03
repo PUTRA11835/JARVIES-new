@@ -87,14 +87,36 @@ class OAuthEmailController extends Controller
         }
 
         $customerId = session('user.id');
+        $authToken  = session('auth_token');
 
-        if (!$customerId) {
-            return redirect()->route('login')->with('error', 'Please login first.');
+        // If session is missing → save intent to session then redirect to login
+        if (!$customerId || !$authToken) {
+            session(['oauth_pending_provider' => $provider]);
+            return redirect()->route('login')
+                ->with('info', 'Your session has expired. Please log in again, then connect your email from the onboarding page.');
+        }
+
+        // If user denied permission or provider returned an error
+        if (request()->has('error')) {
+            $returnTo = session('oauth_email_return', route('dashboard'));
+            session()->forget(['oauth_email_intent', 'oauth_email_provider', 'oauth_email_return']);
+
+            return redirect()->route('onboarding.connect-email')
+                ->with('oauth_error', 'Access denied. Please grant the "Send email on your behalf" permission and try again.');
         }
 
         try {
             $guzzle     = new GuzzleClient(['timeout' => 15, 'connect_timeout' => 5]);
             $socialUser = Socialite::driver($provider)->setHttpClient($guzzle)->user();
+
+            // Validate: ensure gmail.send scope was granted (Google)
+            if ($provider === 'google') {
+                $grantedScopes = $socialUser->accessTokenResponseBody['scope'] ?? '';
+                if (!str_contains($grantedScopes, 'gmail.send')) {
+                    return redirect()->route('onboarding.connect-email')
+                        ->with('oauth_error', 'The "Send email on your behalf" permission was not granted. Please try again and make sure to grant this permission.');
+                }
+            }
 
             CustomerEmailToken::updateOrCreate(
                 ['customer_id' => $customerId, 'provider' => $provider],
@@ -119,7 +141,7 @@ class OAuthEmailController extends Controller
             session()->forget(['oauth_email_intent', 'oauth_email_provider', 'oauth_email_return']);
 
             return redirect($returnTo)
-                ->with('oauth_success', "Akun {$provider} berhasil dihubungkan.");
+                ->with('oauth_success', "Your {$provider} account has been connected.");
 
         } catch (\Throwable $e) {
             Log::error('OAuthEmailController@callback failed', [
@@ -131,7 +153,7 @@ class OAuthEmailController extends Controller
             session()->forget(['oauth_email_intent', 'oauth_email_provider', 'oauth_email_return']);
 
             return redirect($returnTo)
-                ->with('oauth_error', 'Gagal menghubungkan akun: ' . $e->getMessage());
+                ->with('oauth_error', 'Failed to connect account: ' . $e->getMessage());
         }
     }
 

@@ -343,29 +343,21 @@ class EmailController extends Controller
                             }
                         }
 
-                        // Buat tiket baru (ticket_number akan di-assign oleh EcoSystem)
-                        $ticket = Ticket::create([
-                            'customer_id'     => $customer?->customer_id,
-                            'description'     => $subject,
-                            'status'          => 'open',
-                            'channel'         => 'email',
-                            'email_thread_id' => $conversationId ?? $internetMsgId,
-                            'start_date'      => now()->toDateString(),
+                        // Semua email baru masuk ke staging_tickets dulu (perlu validasi EcoSystem)
+                        // EcoSystem yang approve → buat ticket + ticket_message pertama dari staging.body
+                        StagingTicket::create([
+                            'customer_id'        => $customer?->customer_id,
+                            'description'        => $subject,
+                            'body'               => strip_tags($body),
+                            'status'             => 'unvalidated',
+                            'channel'            => 'email',
+                            'email_thread_id'    => $conversationId ?? $internetMsgId,
+                            'submitted_by_email' => $fromEmail,
                         ]);
 
-                        TicketMessage::create([
-                            'ticket_id'           => $ticket->ticket_id,
-                            'sender_type'         => $customer ? 'customer' : 'system',
-                            'sender_id'           => $customer?->customer_id,
-                            'sender_email'        => $fromEmail,
-                            'sender_name'         => $fromName,
-                            'message'             => strip_tags($body),
-                            'is_internal_note'    => false,
-                            'channel'             => 'email',
-                            'email_message_id'    => $internetMsgId,
-                            'email_in_reply_to'   => null,
-                            'is_read_by_customer' => true,
-                            'is_read_by_agent'    => false,
+                        Log::info('EmailController@processInbox: staging ticket created from email', [
+                            'from'    => $fromEmail,
+                            'subject' => $subject,
                         ]);
                     }
 

@@ -58,6 +58,28 @@ class TicketController extends Controller
     }
 
     /**
+     * Display pending validation (staging) tickets page — customer only.
+     * URL: GET /tickets/pending
+     */
+    public function pendingPage()
+    {
+        $user = session('user');
+        if (!$user || $user['role']['id'] != 3) {
+            return redirect()->route('tickets.index');
+        }
+
+        try {
+            $service  = new StagingTicketService();
+            $stagings = $service->getByCustomer($user['id']);
+        } catch (\Exception $e) {
+            Log::error('pendingPage error', ['error' => $e->getMessage()]);
+            $stagings = collect();
+        }
+
+        return view('tickets.pending', compact('stagings'));
+    }
+
+    /**
      * AJAX: Get staging tickets milik customer yang sedang login.
      * URL: GET /tickets/staging
      */
@@ -137,9 +159,9 @@ class TicketController extends Controller
                 Log::info('Admin viewing all tickets');
                 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
-                    
+
             // Employee: cek DSM qualification
             } elseif ($sessionUser['role']['id'] == 2) {
                 $employeeId = $sessionUser['id'];
@@ -156,16 +178,16 @@ class TicketController extends Controller
                 
                 // Employee dengan DSM bisa lihat semua ticket
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
-                    
+
             // Customer: hanya bisa lihat tiket mereka sendiri
             } elseif ($sessionUser['role']['id'] == 3) {
                 Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
                 
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $sessionUser['id'])
-                    ->orderBy('created_at', 'desc')
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
                     
             } else {
@@ -228,6 +250,8 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
+                    'last_message_at' => $ticket->last_message_at,
+                    'channel' => $ticket->channel,
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
@@ -279,15 +303,21 @@ class TicketController extends Controller
 
                 if ($emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token)) {
                     try {
-                        $emailSubject = "[PENDING] {$staging->description}";
-                        $emailBody    = "Permintaan tiket Anda telah kami terima dan sedang menunggu validasi.\n\n"
-                            . "Referensi: STG-{$staging->id}\n"
-                            . "Prioritas: {$staging->ticket_priority}\n"
+                        // Prefix [PENDING] agar email processor tidak buat ticket duplikat
+                        // EmailController@processInbox mengenali prefix ini dan hanya update email_thread_id
+                        $emailSubject = '[PENDING] ' . $staging->description;
+                        $emailBody    = "Your ticket request has been received and is awaiting validation.\n\n"
                             . ($validated['body'] ?? '');
 
-                        $toEmail   = env('MS_SENDER_EMAIL');
-                        $service   = new CustomerEmailService();
-                        $emailSent = $service->sendEmail($emailToken, $toEmail, $emailSubject, $emailBody);
+                        $toEmail    = env('MS_SENDER_EMAIL');
+                        $service    = new CustomerEmailService();
+                        $threadId   = $service->sendEmail($emailToken, $toEmail, $emailSubject, $emailBody);
+                        $emailSent  = $threadId !== null;
+
+                        // Store threadId for future replies in the same thread
+                        if ($threadId) {
+                            $staging->update(['email_thread_id' => $threadId]);
+                        }
                     } catch (\Throwable $e) {
                         Log::warning('TicketController@store: staging email send failed (non-fatal)', [
                             'error' => $e->getMessage(),
@@ -299,7 +329,7 @@ class TicketController extends Controller
                     'success'    => true,
                     'staging'    => true,
                     'email_sent' => $emailSent,
-                    'message'    => 'Tiket Anda telah dikirim dan sedang menunggu validasi admin.',
+                    'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
                     'data'       => [
                         'id'              => $staging->id,
                         'status'          => $staging->status,
@@ -316,7 +346,7 @@ class TicketController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Gagal mengirim tiket: ' . $e->getMessage(),
+                    'message' => 'Failed to submit ticket: ' . $e->getMessage(),
                 ], 500);
             }
         }
@@ -1255,6 +1285,37 @@ class TicketController extends Controller
                 ? ($sessionUser['company_name'] ?? $sessionUser['name'] ?? 'Customer')
                 : ($sessionUser['name'] ?? 'Admin');
 
+            // If customer has linked email, send via OAuth and mark channel as 'email'
+            $channel = 'web';
+            if ($roleId == 3) {
+                $emailToken = CustomerEmailToken::where('customer_id', $sessionUser['id'])->first();
+                if ($emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token)) {
+                    try {
+                        $service  = new CustomerEmailService();
+                        $threadId = $ticket->email_thread_id ?? null;
+                        $result   = $service->sendEmail(
+                            $emailToken,
+                            env('MS_SENDER_EMAIL'),
+                            $ticket->description,
+                            $request->input('comment'),
+                            $threadId
+                        );
+                        if ($result !== null) {
+                            $channel = 'email';
+                            // Update threadId on ticket if not yet set
+                            if (!$threadId && $result !== 'azure_sent') {
+                                $ticket->update(['email_thread_id' => $result]);
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('addComment: email send failed (non-fatal)', [
+                            'ticket_id' => $id,
+                            'error'     => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
             TicketMessage::create([
                 'ticket_id'           => $ticket->ticket_id,
                 'sender_type'         => $roleId == 3 ? 'customer' : 'employee',
@@ -1263,7 +1324,7 @@ class TicketController extends Controller
                 'sender_name'         => $senderName,
                 'message'             => $request->input('comment'),
                 'is_internal_note'    => false,
-                'channel'             => 'web',
+                'channel'             => $channel,
                 'is_read_by_customer' => $roleId == 3,
                 'is_read_by_agent'    => $roleId != 3,
             ]);
@@ -1279,7 +1340,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pesan berhasil dikirim.',
+                'message' => 'Message sent.',
             ]);
 
         } catch (\Exception $e) {

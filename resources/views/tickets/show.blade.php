@@ -1,18 +1,15 @@
 @extends('layouts.app')
 
-@section('sidebar-width', 'w-72')
-
 @section('sidebar-nav')
-    {{-- Header --}}
+    {{-- Header: Back + Search --}}
     <div class="px-4 pt-4 pb-3 border-b border-red-700/50 shrink-0">
         <a href="{{ route('tickets.index') }}"
-           class="flex items-center gap-2 px-3 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all text-sm font-medium w-full">
+           class="nav-link flex items-center gap-2 px-3 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all text-sm font-medium w-full">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
             </svg>
-            <span>Back to Tickets</span>
+            <span class="nav-text">Back to Tickets</span>
         </a>
-        {{-- Search --}}
         <div class="mt-2">
             <input type="text" id="sidebarSearch" placeholder="Search tickets…"
                    class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/15 transition-all"
@@ -26,27 +23,6 @@
             <p class="text-white/50 text-xs">Loading…</p>
         </div>
     </div>
-
-    {{-- User Info --}}
-    <div class="p-4 border-t border-red-700/50 shrink-0">
-        <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                <span class="text-sm font-semibold">{{ strtoupper(substr(session('user.name', 'U'), 0, 1)) }}</span>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate text-white">{{ session('user.name', 'User') }}</p>
-                <p class="text-xs text-red-300 truncate">{{ session('user.role.name', 'Role') }}</p>
-            </div>
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="p-1.5 hover:bg-white/10 rounded-lg transition-colors" title="Logout">
-                    <svg class="w-4 h-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                    </svg>
-                </button>
-            </form>
-        </div>
-    </div>
 @endsection
 
 @section('title', ($ticket->ticket_number ?? 'Pending') . ' — Ticket')
@@ -54,7 +30,35 @@
 @section('page-subtitle', ($ticket->ticket_number ?? 'Pending') . ' — ' . Str::limit($ticket->description ?? '', 50))
 
 @push('styles')
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 <style>
+/* Quill editor overrides */
+.ql-toolbar.ql-snow {
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 6px 12px;
+    background: #f9fafb;
+}
+.ql-container.ql-snow {
+    border: none;
+    font-size: 14px;
+    font-family: inherit;
+}
+.ql-editor {
+    min-height: 90px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 10px 16px;
+    color: #374151;
+    line-height: 1.6;
+}
+.ql-editor.ql-blank::before {
+    color: #9ca3af;
+    font-style: normal;
+    left: 16px;
+}
+.ql-toolbar .ql-formats { margin-right: 8px; }
+
 /* Sidebar ticket items */
 .sidebar-ticket-item {
     display: block; padding: 8px 10px 8px 12px; border-radius: 7px;
@@ -66,9 +70,28 @@
 .sidebar-ticket-item.active { background: rgba(255,255,255,0.16); border-left-color: rgba(255,255,255,0.75); }
 
 /* Message bubbles */
-.message-bubble { max-width: 75%; word-break: break-word; }
-.bubble-customer { background: #fff1f2; border-radius: 18px 4px 18px 18px; }
-.bubble-employee { background: #f3f4f6; border-radius: 4px 18px 18px 18px; }
+.message-bubble { max-width: 85%; word-break: break-word; }
+.bubble-customer { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
+.bubble-employee { background: #f3f4f6; border-radius: 12px 12px 12px 4px; }
+
+/* Channel badge */
+.msg-channel-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; vertical-align: middle; }
+.msg-channel-email { background: #dbeafe; color: #1d4ed8; }
+.msg-channel-web   { background: #f0fdf4; color: #15803d; }
+
+/* Email HTML body */
+.email-html-body { word-break: break-word; }
+.email-html-body p  { margin-bottom: 0.3rem; }
+.email-html-body a  { color: #2563eb; text-decoration: underline; }
+.email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
+.email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
+.email-html-body img { max-width: 100%; height: auto; border-radius: 6px; }
+
+/* Message content */
+.message-content p { margin-bottom: 0.25rem; }
+.message-content p:last-child { margin-bottom: 0; }
+.message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
 
 /* Quill HTML content */
 .quill-content p { margin-bottom: 0.25rem; }
@@ -156,32 +179,58 @@
         </div>
 
         {{-- Compose Area --}}
-        <div class="border-t border-gray-200 shrink-0 bg-white">
-            <textarea id="replyInput" rows="4"
-                placeholder="Type your reply here..."
-                class="w-full px-4 py-3 text-sm text-gray-700 placeholder-gray-400 border-none focus:outline-none focus:ring-0 resize-none bg-white"></textarea>
-            <div class="flex items-center justify-between px-4 pb-3 pt-1 border-t border-gray-100">
-                <div class="flex items-center gap-1">
-                    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+        <div class="border-t border-gray-200 shrink-0">
+
+            {{-- Channel mode indicator --}}
+            @if($ticket->channel === 'email')
+            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                </svg>
+                <span>Balasan akan dikirim ke tim support via <strong>Email</strong></span>
+            </div>
+            @else
+            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+                </svg>
+                <span>Balasan hanya tampil di <strong>Jarvies</strong> — tidak ada email yang dikirim</span>
+            </div>
+            @endif
+
+            <div class="px-4 pt-2 pb-2">
+                <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                    <div id="replyEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+
+                {{-- Attachment Preview --}}
+                <div id="attachmentPreview" style="display:none" class="mt-2 flex-wrap gap-2"></div>
+
+                {{-- Hidden file input --}}
+                <input type="file" id="attachmentInput" multiple class="hidden"
+                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
+
+                <div class="flex items-center justify-end mt-2 mb-1 gap-2">
+                    <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
+                    <button onclick="sendReply()" id="sendBtn"
+                        class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg id="sendIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                         </svg>
-                        Attachment
+                        <svg id="sendSpinner" class="hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Send Reply
                     </button>
                 </div>
-                <button onclick="sendReply()" id="sendBtn"
-                    class="inline-flex items-center gap-2 px-4 py-2 bg-red-700 text-white text-sm font-semibold rounded-lg hover:bg-red-800 active:bg-red-900 transition-colors shadow-sm">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                    </svg>
-                    Send Reply
-                </button>
             </div>
         </div>
     </div>
 
     {{-- ═══ RIGHT: Properties (read-only) ═══ --}}
-    <div class="hidden xl:block w-64 bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto shrink-0">
+    <div class="hidden xl:block w-72 bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto shrink-0">
         <div class="p-5">
             <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide mb-4">Properties</h4>
             <div class="space-y-3">
@@ -285,14 +334,85 @@
 
 </div>
 
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const ticketId   = {{ $ticket->ticket_id }};
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
 let renderedMessageIds = new Set();
 let allSidebarTickets  = [];
+let quill;
+let selectedFiles      = [];
 
 document.addEventListener('DOMContentLoaded', function () {
+    // Init Quill rich text editor
+    quill = new Quill('#replyEditor', {
+        theme: 'snow',
+        placeholder: 'Type your reply here...',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote'],
+                [{ 'list': 'bullet' }, { 'list': 'ordered' }],
+                [{ 'header': [1, 2, 3, false] }],
+                ['link'],
+                ['clean']
+            ],
+            keyboard: {
+                bindings: {
+                    ctrlEnter: {
+                        key: 13,
+                        ctrlKey: true,
+                        handler: () => sendReply()
+                    }
+                }
+            }
+        }
+    });
+
+    // Inject attachment button into Quill toolbar
+    const toolbar = document.querySelector('.ql-toolbar');
+    if (toolbar) {
+        const tipMap = {
+            'ql-bold': 'Bold', 'ql-italic': 'Italic', 'ql-underline': 'Underline',
+            'ql-strike': 'Strikethrough', 'ql-blockquote': 'Blockquote',
+            'ql-link': 'Link', 'ql-clean': 'Clear Formatting',
+        };
+        Object.entries(tipMap).forEach(([cls, label]) => {
+            const btn = toolbar.querySelector('.' + cls);
+            if (btn) btn.setAttribute('title', label);
+        });
+        toolbar.querySelectorAll('.ql-list').forEach(btn => {
+            btn.setAttribute('title', btn.value === 'ordered' ? 'Numbered List' : 'Bullet List');
+        });
+        const headerEl = toolbar.querySelector('.ql-header');
+        if (headerEl) headerEl.setAttribute('title', 'Heading');
+
+        const attachGroup = document.createElement('span');
+        attachGroup.className = 'ql-formats';
+        attachGroup.innerHTML = `
+            <button type="button" title="Attach File"
+                    onclick="document.getElementById('attachmentInput').click()"
+                    style="width:auto;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;border-radius:3px;">
+                <svg style="width:12px;height:12px;color:#555" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                <span style="font-size:11px;font-weight:500;color:#444;line-height:1.5">Attachment</span>
+            </button>`;
+        toolbar.appendChild(attachGroup);
+    }
+
+    // Attachment input listener
+    document.getElementById('attachmentInput').addEventListener('change', function () {
+        const maxSize = 10 * 1024 * 1024;
+        Array.from(this.files).forEach(file => {
+            if (file.size > maxSize) { showNotification(`${file.name} terlalu besar (maks 10 MB)`, 'error'); return; }
+            if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) selectedFiles.push(file);
+        });
+        this.value = '';
+        renderAttachmentPreview();
+    });
+
     loadMessages();
     loadSidebarTickets();
     startPolling();
@@ -301,6 +421,45 @@ document.addEventListener('DOMContentLoaded', function () {
 // ==================== POLLING ====================
 function startPolling() {
     setInterval(() => loadMessages(), 15000);
+}
+
+// ==================== ATTACHMENT HANDLING ====================
+function renderAttachmentPreview() {
+    const preview = document.getElementById('attachmentPreview');
+    const countEl = document.getElementById('attachCount');
+    if (selectedFiles.length === 0) {
+        preview.style.display = 'none';
+        countEl.classList.add('hidden');
+        return;
+    }
+    preview.style.display = 'flex';
+    countEl.classList.remove('hidden');
+    countEl.textContent = selectedFiles.length + (selectedFiles.length === 1 ? ' file' : ' files');
+    preview.innerHTML = selectedFiles.map((file, idx) => {
+        const icon = file.type.startsWith('image/') ? '🖼️'
+                   : file.type === 'application/pdf' ? '📄'
+                   : /\.(doc|docx)$/i.test(file.name) ? '📝'
+                   : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
+                   : /\.(zip|rar)$/i.test(file.name) ? '🗜️' : '📎';
+        return `<div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5" style="max-width:200px">
+            <span class="text-sm flex-shrink-0">${icon}</span>
+            <p class="text-xs font-medium text-gray-700 truncate flex-1" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
+            <button type="button" onclick="removeAttachment(${idx})"
+                    class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 text-xs leading-none">✕</button>
+        </div>`;
+    }).join('');
+}
+
+function removeAttachment(idx) {
+    selectedFiles.splice(idx, 1);
+    renderAttachmentPreview();
+}
+
+function resetAttachments() {
+    selectedFiles = [];
+    const inp = document.getElementById('attachmentInput');
+    if (inp) inp.value = '';
+    renderAttachmentPreview();
 }
 
 // ==================== MESSAGES ====================
@@ -433,8 +592,8 @@ function createMessageBubble(msg) {
     // Customer (sender_type=customer) → KANAN, avatar merah,  bubble merah muda
     // External/CC email    → KANAN, avatar ungu, bubble merah muda
     const avatarBg  = isEmployee
-        ? 'bg-blue-600'
-        : (msg.sender_type === 'customer' ? 'bg-red-600' : 'bg-purple-600');
+        ? 'bg-gray-400'
+        : (msg.sender_type === 'customer' ? 'bg-blue-600' : 'bg-blue-500');
     const bubbleCls = isEmployee ? 'bubble-employee' : 'bubble-customer';
 
     return `
@@ -471,32 +630,45 @@ function setupEmailFrames() {
 
 // ==================== SEND REPLY ====================
 async function sendReply() {
-    const input   = document.getElementById('replyInput');
-    const comment = input.value.trim();
+    const commentHtml = quill.root.innerHTML;
+    const comment     = quill.getText().trim();
+    const hasFiles    = selectedFiles.length > 0;
 
-    if (!comment) {
+    if (!comment && !hasFiles) {
         showNotification('Pesan tidak boleh kosong.', 'error');
         return;
     }
 
-    const btn = document.getElementById('sendBtn');
-    if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+    const btn     = document.getElementById('sendBtn');
+    const icon    = document.getElementById('sendIcon');
+    const spinner = document.getElementById('sendSpinner');
+    if (btn) { btn.disabled = true; icon?.classList.add('hidden'); spinner?.classList.remove('hidden'); }
 
     try {
+        let body, headers;
+        if (hasFiles) {
+            const fd = new FormData();
+            fd.append('comment', comment);
+            fd.append('comment_html', commentHtml);
+            selectedFiles.forEach(f => fd.append('attachments[]', f));
+            body = fd;
+            headers = { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN };
+        } else {
+            body = JSON.stringify({ comment, comment_html: commentHtml });
+            headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN };
+        }
+
         const res  = await fetch(`/tickets/${ticketId}/comment`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN
-            },
+            headers,
             credentials: 'same-origin',
-            body: JSON.stringify({ comment })
+            body
         });
         const data = await res.json();
 
         if (data.success) {
-            input.value = '';
+            quill.setContents([]);
+            resetAttachments();
             await loadMessages();
             showNotification('Pesan terkirim.', 'success');
         } else {
@@ -505,17 +677,9 @@ async function sendReply() {
     } catch (err) {
         showNotification('Error: ' + err.message, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
+        if (btn) { btn.disabled = false; icon?.classList.remove('hidden'); spinner?.classList.add('hidden'); }
     }
 }
-
-// Ctrl+Enter untuk kirim
-document.getElementById('replyInput')?.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        sendReply();
-    }
-});
 
 // ==================== SIDEBAR: Ticket List ====================
 async function loadSidebarTickets() {
@@ -528,7 +692,11 @@ async function loadSidebarTickets() {
         document.getElementById('sidebarLoading')?.remove();
 
         if (data.data) {
-            allSidebarTickets = data.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            allSidebarTickets = data.data.sort((a, b) => {
+                const dA = a.last_message_at || a.created_at;
+                const dB = b.last_message_at || b.created_at;
+                return new Date(dB) - new Date(dA);
+            });
             renderSidebarTickets(allSidebarTickets);
         }
     } catch {
@@ -546,24 +714,33 @@ function renderSidebarTickets(tickets) {
     }
 
     list.innerHTML = tickets.map(t => {
-        const isActive  = t.ticket_id === ticketId;
-        const desc      = t.description || 'No description';
-        const shortDesc = desc.length > 38 ? desc.substring(0, 38) + '…' : desc;
-        const timeAgo   = formatTimeAgo(new Date(t.created_at));
+        const isActive   = t.ticket_id === ticketId;
+        const desc       = t.description || 'No description';
+        const shortDesc  = desc.length > 36 ? desc.substring(0, 36) + '…' : desc;
+        const lastDate   = t.last_message_at || t.created_at;
+        const timeAgo    = formatTimeAgo(new Date(lastDate));
         const prioColors = { Low: 'bg-green-400', Medium: 'bg-blue-400', High: 'bg-red-400' };
-        const prioDot   = prioColors[t.ticket_priority] || 'bg-gray-400';
-        const ticketNum = t.ticket_number || 'Pending';
+        const prioDot    = prioColors[t.ticket_priority] || 'bg-gray-500';
+        const ticketNum  = t.ticket_number || 'Pending';
+        const statusMap  = {
+            'in process': 'bg-blue-400', 'author action': 'bg-amber-400',
+            'proposed solution': 'bg-purple-400', 'sent in to SAP': 'bg-indigo-400', 'closed': 'bg-green-400'
+        };
+        const statusDot = statusMap[t.jarvies_status] || 'bg-gray-500';
 
         return `
             <a href="/tickets/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
-                <div class="flex items-center justify-between mb-0.5">
-                    <span class="text-xs font-semibold text-white truncate max-w-[150px]">${escHtml(ticketNum)}</span>
-                    <span class="text-[10px] text-white/50 shrink-0 ml-1">${timeAgo}</span>
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <div class="w-1.5 h-1.5 rounded-full ${statusDot} shrink-0"></div>
+                        <span class="text-[11px] font-bold text-white/90 truncate">${escHtml(ticketNum)}</span>
+                    </div>
+                    <span class="text-[10px] text-white/40 shrink-0 ml-1">${timeAgo}</span>
                 </div>
-                <p class="text-[11px] text-white/70 truncate mb-1">${escHtml(shortDesc)}</p>
-                <div class="flex items-center gap-1.5">
+                <p class="text-[11px] text-white/65 truncate mb-1.5 pl-3">${escHtml(shortDesc)}</p>
+                <div class="flex items-center gap-1.5 pl-3">
                     <div class="w-1.5 h-1.5 rounded-full ${prioDot}"></div>
-                    <span class="text-[10px] text-white/50">${t.ticket_priority || '—'}</span>
+                    <span class="text-[10px] text-white/45">${t.ticket_priority || '—'}</span>
                 </div>
             </a>`;
     }).join('');

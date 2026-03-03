@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Hubungkan Email — Jarvies Portal</title>
+    <title>Connect Email — Jarvies Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,10 +22,10 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>
             </div>
-            <h1 class="text-2xl font-bold text-gray-900">Satu langkah lagi!</h1>
+            <h1 class="text-2xl font-bold text-gray-900">One more step!</h1>
             <p class="text-gray-500 mt-2 text-sm leading-relaxed">
-                Hubungkan akun email Anda agar ticket dapat dikirim<br>
-                langsung dari email Anda ke tim support kami.
+                Connect your email account so tickets can be sent<br>
+                directly from your email to our support team.
             </p>
         </div>
 
@@ -50,7 +50,7 @@
             </div>
             @endif
 
-            <p class="text-xs text-gray-500 mb-4 text-center">Pilih penyedia email yang ingin Anda hubungkan:</p>
+            <p class="text-xs text-gray-500 mb-4 text-center">Select the email provider you want to connect:</p>
 
             {{-- Google --}}
             <a href="{{ route('oauth.email.redirect', ['provider' => 'google', 'return' => route('dashboard')]) }}"
@@ -62,7 +62,7 @@
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 <div class="flex-1 text-left">
-                    <div class="text-sm font-semibold text-gray-800 group-hover:text-gray-900">Lanjutkan dengan Google</div>
+                    <div class="text-sm font-semibold text-gray-800 group-hover:text-gray-900">Continue with Google</div>
                     <div class="text-xs text-gray-400">Gmail & Google Account</div>
                 </div>
                 <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +80,7 @@
                     <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#FFB900"/>
                 </svg>
                 <div class="flex-1 text-left">
-                    <div class="text-sm font-semibold text-gray-800 group-hover:text-gray-900">Lanjutkan dengan Microsoft</div>
+                    <div class="text-sm font-semibold text-gray-800 group-hover:text-gray-900">Continue with Microsoft</div>
                     <div class="text-xs text-gray-400">Outlook & Microsoft Account</div>
                 </div>
                 <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,19 +91,19 @@
             <div class="relative mb-5">
                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-100"></div></div>
                 <div class="relative flex justify-center">
-                    <span class="px-3 bg-white text-xs text-gray-400">atau</span>
+                    <span class="px-3 bg-white text-xs text-gray-400">or</span>
                 </div>
             </div>
 
             {{-- Skip --}}
             <a href="{{ route('dashboard') }}"
                class="flex items-center justify-center w-full px-4 py-3 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-50 transition-colors border border-gray-200 hover:border-gray-300">
-                Lewati, saya akan lakukan nanti
+                Skip, I'll do this later
             </a>
 
             <p class="text-xs text-gray-400 text-center mt-4 leading-relaxed">
-                Cukup satu kali. Token disimpan aman dan hanya digunakan untuk mengirim ticket.
-                Anda tetap dapat membuat ticket tanpa menghubungkan email.
+                One-time setup. Your token is stored securely and only used for sending tickets.
+                You can still create tickets without connecting an email.
             </p>
         </div>
 

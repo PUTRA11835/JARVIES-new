@@ -36,7 +36,7 @@ class PasswordSetupController extends Controller
         $token = $request->query('token', '');
 
         if (empty($token)) {
-            return redirect()->route('login')->with('error', 'Link tidak valid.');
+            return redirect()->route('login')->with('error', 'Invalid link.');
         }
 
         $authUser = DB::table('auth_users')
@@ -46,7 +46,7 @@ class PasswordSetupController extends Controller
 
         if (!$authUser) {
             return redirect()->route('login')
-                ->with('error', 'Link sudah tidak berlaku. Silakan minta link baru.');
+                ->with('error', 'This link has expired. Please request a new one.');
         }
 
         return view('auth.change-password', compact('token'));
@@ -70,7 +70,7 @@ class PasswordSetupController extends Controller
 
         if (!$authUser) {
             return back()->withErrors([
-                'token' => 'Link sudah tidak berlaku. Silakan minta link baru.',
+                'token' => 'This link has expired. Please request a new one.',
             ]);
         }
 
@@ -121,9 +121,9 @@ class PasswordSetupController extends Controller
             }
         }
 
-        // Employee atau customer tidak ditemukan → redirect ke login seperti biasa
+        // Employee or customer not found → redirect to login as usual
         return redirect()->route('login')
-            ->with('success', 'Password berhasil diatur. Silakan login dengan password baru Anda.');
+            ->with('success', 'Password set successfully. Please log in with your new password.');
     }
 
     // =========================================================================
@@ -207,43 +207,114 @@ class PasswordSetupController extends Controller
         }
 
         try {
-            $link    = route('password-setup.change', ['token' => $token]);
-            $appName = config('app.name', 'ECoSystem');
+            $link       = route('password-setup.change', ['token' => $token]);
+            $appName    = config('app.name', 'ECoSystem');
+            $senderName = env('MS_SENDER_NAME', $appName);
+            $appUrl     = rtrim(config('app.url', ''), '/');
 
             if ($type === 'reset') {
-                $subject = "Reset Password {$appName}";
-                $body    = <<<HTML
-<p>Halo,</p>
-<p>Kami menerima permintaan reset password untuk akun Anda di <strong>{$appName}</strong>.</p>
-<p>Klik tombol di bawah ini untuk mengatur password baru:</p>
-<p style="margin:24px 0;">
-  <a href="{$link}"
-     style="background:#991b1b;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
-    Reset Password Saya
-  </a>
-</p>
-<p>Link ini berlaku selama <strong>24 jam</strong>.</p>
-<p>Jika Anda tidak meminta reset password, abaikan email ini. Password Anda tidak akan berubah.</p>
-<br>
-<p>Salam,<br><strong>Tim {$appName}</strong></p>
+                $subject  = "Password Reset Request - {$appName}";
+                $bodyHtml = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <tr><td style="background:#7f1d1d;padding:24px 32px;">
+          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">{$appName}</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello,</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+            We received a request to reset the password for your account registered in the <strong>{$appName}</strong> system.
+          </p>
+          <p style="margin:0 0 24px;font-size:15px;color:#374151;">
+            Click the link below to create a new password. This link is valid for <strong>24 hours</strong>.
+          </p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#991b1b;border-radius:6px;padding:12px 28px;">
+              <a href="{$link}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;display:block;">Reset My Password</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 12px;font-size:13px;color:#6b7280;">
+            Or copy and paste the following link into your browser:
+          </p>
+          <p style="margin:0 0 24px;font-size:12px;color:#9ca3af;word-break:break-all;">{$link}</p>
+          <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">
+            If you did not request a password reset, please ignore this email. Your password will not change.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+          <p style="margin:0;font-size:13px;color:#9ca3af;">
+            This email was sent automatically by the {$appName} system. Please do not reply to this email.
+          </p>
+        </td></tr>
+        <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+            &copy; {$appName} &mdash; PT Eclectic Consulting Yogyakarta<br>
+            <a href="{$appUrl}" style="color:#9ca3af;">{$appUrl}</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
 HTML;
+                $bodyText = "Hello,\r\n\r\nWe received a request to reset your {$appName} account password.\r\n\r\nUse the following link to create a new password (valid for 24 hours):\r\n{$link}\r\n\r\nIf you did not request this, please ignore this email.\r\n\r\nBest regards,\r\nThe {$appName} Team";
             } else {
-                $subject = "Aktivasi Akun {$appName} — Atur Password Anda";
-                $body    = <<<HTML
-<p>Halo,</p>
-<p>Akun Anda di <strong>{$appName}</strong> telah dibuat oleh tim kami.</p>
-<p>Silakan klik tombol di bawah ini untuk mengatur password Anda sebelum dapat masuk ke sistem:</p>
-<p style="margin:24px 0;">
-  <a href="{$link}"
-     style="background:#991b1b;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
-    Atur Password Saya
-  </a>
-</p>
-<p>Link ini berlaku selama <strong>24 jam</strong>.</p>
-<p>Jika Anda tidak merasa mendaftar, hubungi administrator.</p>
-<br>
-<p>Salam,<br><strong>Tim {$appName}</strong></p>
+                $subject  = "Welcome to {$appName} - Complete Your Account Setup";
+                $bodyHtml = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <tr><td style="background:#7f1d1d;padding:24px 32px;">
+          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">{$appName}</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;">Hello,</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+            Your account in the <strong>{$appName}</strong> system has been successfully created by our team.
+          </p>
+          <p style="margin:0 0 24px;font-size:15px;color:#374151;">
+            To log in to the system, you need to set your password first.
+            Click the link below to continue. This link is valid for <strong>24 hours</strong>.
+          </p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#991b1b;border-radius:6px;padding:12px 28px;">
+              <a href="{$link}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;display:block;">Set My Password</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 12px;font-size:13px;color:#6b7280;">
+            Or copy and paste the following link into your browser:
+          </p>
+          <p style="margin:0 0 24px;font-size:12px;color:#9ca3af;word-break:break-all;">{$link}</p>
+          <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">
+            If you did not register or received this email by mistake, please contact our administrator.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+          <p style="margin:0;font-size:13px;color:#9ca3af;">
+            This email was sent automatically by the {$appName} system. Please do not reply to this email.
+          </p>
+        </td></tr>
+        <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+            &copy; {$appName} &mdash; PT Eclectic Consulting Yogyakarta<br>
+            <a href="{$appUrl}" style="color:#9ca3af;">{$appUrl}</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
 HTML;
+                $bodyText = "Hello,\r\n\r\nYour account in {$appName} has been created by our team.\r\n\r\nUse the following link to set your password (valid for 24 hours):\r\n{$link}\r\n\r\nIf you have any questions, please contact the administrator.\r\n\r\nBest regards,\r\nThe {$appName} Team";
             }
 
             $sender     = env('MS_SENDER_EMAIL');
@@ -254,7 +325,16 @@ HTML;
                 [
                     'message' => [
                         'subject' => $subject,
-                        'body'    => ['contentType' => 'HTML', 'content' => $body],
+                        'body'    => ['contentType' => 'HTML', 'content' => $bodyHtml],
+                        'from'    => [
+                            'emailAddress' => [
+                                'name'    => $senderName,
+                                'address' => $sender,
+                            ],
+                        ],
+                        'replyTo' => [
+                            ['emailAddress' => ['name' => $senderName, 'address' => $sender]],
+                        ],
                         'toRecipients' => [
                             ['emailAddress' => ['address' => $authUser->email]],
                         ],
@@ -304,7 +384,7 @@ HTML;
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token: ' . $response->body());
+            throw new \RuntimeException('Failed to obtain access token: ' . $response->body());
         }
 
         return $response->json('access_token');

@@ -5,12 +5,22 @@
 @section('page-subtitle', 'Manage and track all support requests')
 
 @section('header-actions')
-<a href="{{ route('tickets.create') }}" class="flex items-center space-x-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-    </svg>
-    <span>New Ticket</span>
-</a>
+<div class="flex items-center gap-2">
+    @if(session('user.role.id') === 3)
+    <a href="{{ route('tickets.pending') }}" class="flex items-center space-x-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-yellow-200">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Submission History</span>
+    </a>
+    @endif
+    <a href="{{ route('tickets.create') }}" class="flex items-center space-x-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span>New Ticket</span>
+    </a>
+</div>
 @endsection
 
 @section('content')
@@ -21,26 +31,6 @@
     $isCustomer = $userRole === 3;
 @endphp
 
-{{-- ─── STAGING TICKETS (Customer Only) ─────────────────────────── --}}
-@if($isCustomer)
-<div id="stagingSection" class="mb-6">
-    <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Submitted Tickets (Pending Validation)</h3>
-            <span id="stagingBadge" class="hidden bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full"></span>
-        </div>
-        <button onclick="loadStagingTickets()" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Refresh
-        </button>
-    </div>
-    <div id="stagingList" class="space-y-2">
-        <div class="text-center py-4 text-gray-400 text-sm" id="stagingLoading">Loading...</div>
-    </div>
-</div>
-@endif
 
 {{-- Status Filter Cards --}}
 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
@@ -312,8 +302,8 @@ const CSRF_TOKEN = '{{ csrf_token() }}';
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Tickets page initialized', { USER_ROLE, USER_ID, IS_ADMIN });
     loadTickets();
-    if (USER_ROLE === 3) loadStagingTickets();
     initializeEventListeners();
+    startPolling();
 
     // Auto-open ticket dari query param ?open=ID (dari showMyTicket redirect)
     const urlParams = new URLSearchParams(window.location.search);
@@ -323,6 +313,52 @@ document.addEventListener('DOMContentLoaded', function() {
         window.location.href = `/tickets/${openId}`;
     }
 });
+
+// ==================== POLLING (silent refresh setiap 30 detik) ====================
+function startPolling() {
+    setInterval(async () => {
+        // Jangan poll jika modal sedang terbuka (user sedang lihat detail)
+        if (currentTicketId) return;
+
+        try {
+            const res = await fetch(FETCH_URL, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                credentials: 'same-origin'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.success || !data.data) return;
+
+            const fresh = data.data.sort((a, b) => {
+                const dA = a.last_message_at || a.created_at;
+                const dB = b.last_message_at || b.created_at;
+                return new Date(dB) - new Date(dA);
+            });
+
+            // Deteksi perubahan: jumlah tiket berbeda atau ada last_message_at yang lebih baru
+            const hasChanges = fresh.length !== allTickets.length ||
+                fresh.some(t => {
+                    const existing = allTickets.find(e => e.ticket_id === t.ticket_id);
+                    if (!existing) return true; // tiket baru
+                    return (t.last_message_at || '') !== (existing.last_message_at || '');
+                });
+
+            if (!hasChanges) return;
+
+            allTickets = fresh;
+            // Terapkan filter yang sedang aktif
+            if (currentFilter === 'all') {
+                filteredTickets = allTickets;
+            } else {
+                filteredTickets = allTickets.filter(t => t.jarvies_status === currentFilter);
+            }
+            updateStats();
+            renderTickets();
+        } catch {
+            // Gagal poll — abaikan saja, coba lagi di interval berikutnya
+        }
+    }, 30000);
+}
 
 function initializeEventListeners() {
     // ESC key closes modal
@@ -364,7 +400,11 @@ async function loadTickets() {
         const data = await response.json();
         
         if (data.success && data.data) {
-            allTickets = data.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            allTickets = data.data.sort((a, b) => {
+                const dateA = a.last_message_at || a.created_at;
+                const dateB = b.last_message_at || b.created_at;
+                return new Date(dateB) - new Date(dateA);
+            });
             filteredTickets = allTickets;
             updateStats();
             renderTickets();
@@ -480,7 +520,8 @@ function renderTickets() {
 function createTicketCard(ticket) {
     const customerName = ticket.customer?.customer_name || ticket.customer?.company_name || 'Unknown';
     const agentName = ticket.employee?.employee_name || 'Unassigned';
-    const createdDate = formatTimeAgo(new Date(ticket.created_at));
+    const lastActivityDate = ticket.last_message_at || ticket.created_at;
+    const createdDate = formatTimeAgo(new Date(lastActivityDate));
 
     const priorityColors = {
         'Low': 'bg-green-500',
@@ -506,6 +547,10 @@ function createTicketCard(ticket) {
     const ticketTypeBadge = ticket.ticket_type
         ? `<span class="inline-flex px-2 py-0.5 rounded text-xs font-medium ${typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-600'}">${ticket.ticket_type}</span>`
         : '';
+
+    const channelIcon = ticket.channel === 'email'
+        ? `<svg class="w-3.5 h-3.5 text-blue-400" title="Email" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`
+        : `<svg class="w-3.5 h-3.5 text-gray-400" title="Web" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>`;
 
     const priorityLabel = ticket.ticket_priority || '—';
     const priorityDot = ticket.ticket_priority
@@ -549,6 +594,10 @@ function createTicketCard(ticket) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                         </svg>
                         <span class="truncate max-w-[100px]">${agentName}</span>
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        ${channelIcon}
                     </div>
                 </div>
             </div>
@@ -902,73 +951,5 @@ function formatTimeAgo(date) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// ==================== STAGING TICKETS (Customer Only) ====================
-async function loadStagingTickets() {
-    if (USER_ROLE !== 3) return;
-
-    const list    = document.getElementById('stagingList');
-    const badge   = document.getElementById('stagingBadge');
-    const loading = document.getElementById('stagingLoading');
-
-    if (loading) loading.classList.remove('hidden');
-
-    try {
-        const res  = await fetch('{{ route("tickets.staging") }}', {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        const json = await res.json();
-
-        if (loading) loading.remove();
-
-        if (!json.success || !json.data.length) {
-            list.innerHTML = '<div class="text-center py-3 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">Belum ada tiket yang menunggu validasi.</div>';
-            return;
-        }
-
-        const pendingCount = json.data.filter(s => s.status === 'unvalidated').length;
-        if (pendingCount > 0) {
-            badge.textContent = pendingCount + ' menunggu';
-            badge.classList.remove('hidden');
-        }
-
-        list.innerHTML = json.data.map(s => {
-            const statusConfig = {
-                unvalidated: { bg: 'bg-yellow-50 border-yellow-200', badge: 'bg-yellow-100 text-yellow-700', label: 'Menunggu Validasi', icon: '⏳' },
-                approved:    { bg: 'bg-green-50 border-green-200',  badge: 'bg-green-100 text-green-700',  label: 'Disetujui', icon: '✅' },
-                rejected:    { bg: 'bg-red-50 border-red-200',      badge: 'bg-red-100 text-red-700',      label: 'Ditolak', icon: '❌' },
-            };
-            const cfg  = statusConfig[s.status] ?? statusConfig.unvalidated;
-            const date = s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' }) : '-';
-
-            const ticketLink = s.status === 'approved' && s.ticket_id
-                ? `<a href="/tickets/${s.ticket_id}" class="text-xs font-semibold text-red-700 hover:underline ml-2">Lihat Tiket #${s.ticket_number ?? s.ticket_id} →</a>`
-                : '';
-
-            const rejectionNote = s.status === 'rejected' && s.rejection_reason
-                ? `<p class="text-xs text-red-600 mt-1"><span class="font-semibold">Alasan:</span> ${s.rejection_reason}</p>`
-                : '';
-
-            return `
-            <div class="flex items-start gap-3 px-4 py-3 rounded-xl border ${cfg.bg} text-sm">
-                <span class="text-base mt-0.5">${cfg.icon}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-semibold text-gray-800 truncate">${s.description.length > 70 ? s.description.substring(0,70)+'…' : s.description}</span>
-                        <span class="text-xs px-2 py-0.5 rounded-full font-semibold ${cfg.badge}">${cfg.label}</span>
-                        ${s.ticket_priority ? `<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${s.ticket_priority}</span>` : ''}
-                        ${ticketLink}
-                    </div>
-                    ${rejectionNote}
-                    <p class="text-xs text-gray-400 mt-0.5">Dikirim: ${date}</p>
-                </div>
-            </div>`;
-        }).join('');
-
-    } catch (err) {
-        console.error('loadStagingTickets error', err);
-        if (loading) loading.remove();
-        list.innerHTML = '<div class="text-xs text-gray-400 text-center py-2">Gagal memuat data staging.</div>';
-    }
-}
 </script>
 @endpush

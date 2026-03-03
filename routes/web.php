@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OAuthEmailController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,15 +56,20 @@ Route::middleware('jarvies.auth')->group(function () {
         // AJAX API Endpoints
         Route::get('/ajax/fetch', [TicketController::class, 'getTickets'])->name('ajax.fetch');
         Route::get('/staging', [TicketController::class, 'getStagingTickets'])->name('staging');
+        Route::get('/pending', [TicketController::class, 'pendingPage'])->name('pending');
         Route::get('/{id}/messages', [TicketController::class, 'getMessages'])->name('messages')->whereNumber('id');
         Route::post('/{id}/comment', [TicketController::class, 'addComment'])->name('comment')->whereNumber('id');
     });
     
     // ==================== CUSTOMER PORTAL ====================
-    Route::prefix('my')->name('my.')->middleware('role:customer')->group(function () {
+    Route::prefix('my')->name('my.')->group(function () {
         Route::get('/tickets', [TicketController::class, 'myTickets'])->name('tickets');
         Route::get('/tickets/{id}', [TicketController::class, 'showMyTicket'])->name('tickets.show')->whereNumber('id');
     });
+
+    // ==================== PROFILE ====================
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile');
+    Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
     // ==================== ONBOARDING ====================
     Route::get('/onboarding/connect-email', [OAuthEmailController::class, 'onboarding'])->name('onboarding.connect-email');
@@ -72,10 +78,15 @@ Route::middleware('jarvies.auth')->group(function () {
     Route::prefix('oauth/email')->name('oauth.email.')->group(function () {
         Route::get('/status', [OAuthEmailController::class, 'status'])->name('status');
         Route::get('/redirect/{provider}', [OAuthEmailController::class, 'redirect'])->name('redirect');
-        Route::get('/callback/{provider}', [OAuthEmailController::class, 'callback'])->name('callback');
         Route::delete('/disconnect', [OAuthEmailController::class, 'disconnect'])->name('disconnect');
     });
 });
+
+// ==================== OAUTH CALLBACK (di luar jarvies.auth) ====================
+// Callback dari Google/Azure tidak boleh di-block middleware session
+// Controller sudah punya pengecekan session sendiri
+Route::get('/oauth/email/callback/{provider}', [OAuthEmailController::class, 'callback'])
+    ->name('oauth.email.callback');
 
 // ==================== FALLBACK ====================
 Route::fallback(function () {
