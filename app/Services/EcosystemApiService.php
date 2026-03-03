@@ -223,14 +223,15 @@ class EcosystemApiService
             ];
         }
 
-        // 401 Unauthorized - Clear session and force re-login
+        // 401 Unauthorized - EcoSystem API token expired (not JARVIES session)
         if ($statusCode === 401) {
             Log::warning('API 401 Unauthorized - Token expired or invalid', [
                 'endpoint' => $endpoint
             ]);
-            
-            session()->forget(['api_token', 'user']);
-            
+
+            // Only forget the external api_token, NOT 'user' (that is JARVIES session data)
+            session()->forget('api_token');
+
             return [
                 'success' => false,
                 'data' => null,

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Set Password - EcoSystem</title>
+    <title>Set Password - JARVIES</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,7 +22,14 @@
 
             <!-- Logo -->
             <div class="text-center mb-6">
-                <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem" class="h-10 mx-auto"/>
+                <div class="inline-flex items-center gap-2">
+                    <div class="w-8 h-8 bg-red-800 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <span class="font-bold text-xl text-gray-900 tracking-wide">JARVIES</span>
+                </div>
             </div>
 
             <!-- Icon -->

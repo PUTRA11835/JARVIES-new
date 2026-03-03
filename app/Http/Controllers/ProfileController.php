@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Models\Customer;
+use App\Http\Controllers\PasswordSetupController;
 
 class ProfileController extends Controller
 {
@@ -132,59 +133,40 @@ class ProfileController extends Controller
     }
 
     /**
-     * Change password via AJAX — returns JSON.
+     * Send password reset link to the customer's registered email.
+     * Called from the profile Change Password tab.
      */
-    public function changePassword(Request $request)
+    public function sendResetLink(Request $request)
     {
         $sessionUser = session('user');
 
         if (!$sessionUser) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+            return redirect()->route('login');
         }
-
-        $request->validate([
-            'current_password'      => 'required|string',
-            'password'              => 'required|string|min:8|confirmed',
-            'password_confirmation' => 'required|string',
-        ]);
-
-        $type = $sessionUser['type'] ?? null;
 
         $authUser = DB::table('auth_users')
-            ->where(function ($q) use ($sessionUser, $type) {
-                if ($type === 'employee') {
-                    $q->where('employee_id', $sessionUser['id']);
-                } else {
-                    $q->where('customer_id', $sessionUser['id']);
-                }
-            })
+            ->where('customer_id', $sessionUser['id'])
             ->first();
 
-        if (!$authUser) {
-            return response()->json(['success' => false, 'message' => 'Account not found.'], 404);
+        if (!$authUser || empty($authUser->email)) {
+            return redirect()->route('profile')
+                ->with('error', 'No email address is associated with your account. Please contact support.');
         }
 
-        if (!Hash::check($request->current_password, $authUser->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Current password is incorrect.',
-                'errors'  => ['current_password' => ['Current password is incorrect.']],
-            ], 422);
-        }
+        PasswordSetupController::generateAndSendToken($authUser, 'reset');
 
-        DB::table('auth_users')->where('id', $authUser->id)->update([
-            'password'   => Hash::make($request->password),
-            'updated_at' => now(),
-        ]);
-
-        Log::info('ProfileController: password changed', [
+        Log::info('ProfileController: password reset link sent from profile', [
             'auth_user_id' => $authUser->id,
-            'type'         => $type,
+            'customer_id'  => $sessionUser['id'],
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Password updated successfully.',
+        // Mask email for the check-email page
+        [$local, $domain] = explode('@', $authUser->email, 2);
+        $maskedEmail = substr($local, 0, 2) . str_repeat('*', max(strlen($local) - 2, 3)) . '@' . $domain;
+
+        return redirect()->route('password-setup.check-email', [
+            'email' => $maskedEmail,
+            'type'  => 'reset',
         ]);
     }
 }

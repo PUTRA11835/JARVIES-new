@@ -69,7 +69,7 @@ Route::middleware('jarvies.auth')->group(function () {
 
     // ==================== PROFILE ====================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile');
-    Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
+    Route::post('/profile/send-reset-link', [ProfileController::class, 'sendResetLink'])->name('profile.send-reset-link');
 
     // ==================== ONBOARDING ====================
     Route::get('/onboarding/connect-email', [OAuthEmailController::class, 'onboarding'])->name('onboarding.connect-email');

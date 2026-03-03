@@ -15,14 +15,22 @@
         cursor: default !important;
         color: #374151 !important;
     }
-    /* Change-password tab inputs ARE editable */
-    #section-change-password input {
-        pointer-events: auto !important;
-        background: #fff !important;
-        cursor: text !important;
+    /* Hide add / create / delete / edit / copy static action buttons */
+    button[onclick*="openAdd"],
+    button[onclick*="openCreate"],
+    button[onclick*="deleteSelected"],
+    button[onclick*="copySelected"],
+    button[onclick*="saveCustomer"],
+    button[onclick*="saveCurrentSection"] {
+        display: none !important;
     }
-    /* Hide all action / save / add / create buttons inside sections */
-    .section-content .section-action-btn { display: none !important; }
+    /* Hide add/edit modal containers */
+    #bankAccountModal, #attachmentModal { display: none !important; }
+    /* Search bars in attachment / history not needed for read-only */
+    #attachmentSearch, #businessSearch, #projectSearch {
+        pointer-events: none !important;
+        background: #f9fafb !important;
+    }
 </style>
 @endpush
 
@@ -167,38 +175,41 @@
                 @include('profile.customer.sections.attachment', ['customer' => $customer, 'customerId' => $customer->customer_id])
             </div>
 
-            {{-- Change Password (editable — exempt from readonly CSS) --}}
+            {{-- Change Password (email-based flow) --}}
             <div id="section-change-password" class="section-content hidden">
                 <div class="max-w-md">
                     <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Change Password</h3>
 
-                    <div id="pwAlert" class="hidden mb-4 p-3 rounded-lg text-sm font-medium"></div>
+                    @if(session('error'))
+                    <div class="mb-4 p-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+                        {{ session('error') }}
+                    </div>
+                    @endif
 
-                    <form id="pwForm" class="space-y-4" onsubmit="submitChangePassword(event)">
+                    <p class="text-sm text-gray-600 mb-6">
+                        To change your password, we will send a secure reset link to your registered email address.
+                        Click the link in the email to set a new password.
+                    </p>
+
+                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                        <p class="text-xs font-semibold text-gray-500 mb-1">Registered Email</p>
+                        <p class="text-sm font-semibold text-gray-900">{{ $authUser->email ?? 'No email registered' }}</p>
+                    </div>
+
+                    @if($authUser && !empty($authUser->email))
+                    <form method="POST" action="{{ route('profile.send-reset-link') }}">
                         @csrf
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1.5">Current Password</label>
-                            <input type="password" name="current_password"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
-                                   placeholder="••••••••">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1.5">New Password</label>
-                            <input type="password" name="password"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
-                                   placeholder="Min. 8 characters">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-600 mb-1.5">Confirm New Password</label>
-                            <input type="password" name="password_confirmation"
-                                   class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
-                                   placeholder="••••••••">
-                        </div>
-                        <button type="submit" id="pwBtn"
-                                class="bg-red-800 hover:bg-red-900 text-white text-sm font-semibold py-2.5 px-6 rounded-lg transition-all">
-                            Update Password
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 bg-red-800 hover:bg-red-900 text-white text-sm font-semibold py-2.5 px-6 rounded-lg transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            Send Password Reset Link
                         </button>
                     </form>
+                    @else
+                    <p class="text-sm text-red-600">No email address is associated with your account. Please contact support.</p>
+                    @endif
                 </div>
             </div>
 
@@ -255,45 +266,46 @@
         }, 3000);
     }
 
-    // ── Change Password ──
-    function submitChangePassword(e) {
-        e.preventDefault();
-        var btn     = document.getElementById('pwBtn');
-        var alertEl = document.getElementById('pwAlert');
+    // ── Override all mutating functions from included sections (read-only mode) ──
+    document.addEventListener('DOMContentLoaded', function() {
+        var noOp = function() {};
+        // Bank
+        window.openAddBankModal     = noOp;
+        window.editBankAccount      = noOp;
+        window.deleteBankAccount    = noOp;
+        window.saveBankAccount      = noOp;
+        window.editFromDetail       = noOp;
+        // Attachment
+        window.openCreateAttachmentModal = noOp;
+        window.saveAttachmentFromModal   = noOp;
+        window.copySelectedAttachment    = noOp;
+        window.deleteSelectedAttachment  = noOp;
+        // History
+        window.openCreateBusinessModal = noOp;
+        window.deleteSelectedBusiness  = noOp;
+        window.copySelectedBusiness    = noOp;
+        window.openCreateProjectModal  = noOp;
+        window.deleteSelectedProject   = noOp;
+        window.copySelectedProject     = noOp;
+        // Contact / Address / Identification (save actions)
+        window.saveContacts          = noOp;
+        window.saveAddresses         = noOp;
+        window.saveIdentifications   = noOp;
+        window.saveCurrentSection    = noOp;
+        // Settings buttons inside sections — hide via JS (catch dynamic renders)
+        setTimeout(function() {
+            document.querySelectorAll(
+                '[onclick*="openAdd"], [onclick*="openCreate"], [onclick*="delete"], ' +
+                '[onclick*="copySelected"], [onclick*="saveCurrentSection"], ' +
+                '[title="Settings"], [title="Export"]'
+            ).forEach(function(el) { el.style.display = 'none'; });
+        }, 500);
 
-        btn.disabled    = true;
-        btn.textContent = 'Updating…';
-        alertEl.className = 'hidden mb-4 p-3 rounded-lg text-sm font-medium';
+        // Auto-switch to Change Password tab if there is a session error from sendResetLink
+        @if(session('error'))
+        switchSection('change-password');
+        @endif
+    });
 
-        fetch('{{ route('profile.change-password') }}', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                'Accept': 'application/json'
-            },
-            body: new FormData(document.getElementById('pwForm'))
-        })
-        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-        .then(function(res) {
-            if (res.ok && res.data.success) {
-                alertEl.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-green-50 text-green-700 border border-green-200';
-                alertEl.textContent = res.data.message || 'Password updated successfully.';
-                document.getElementById('pwForm').reset();
-            } else {
-                var msg = res.data.message || 'Failed to update password.';
-                if (res.data.errors) msg = Object.values(res.data.errors).flat().join(' ');
-                alertEl.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200';
-                alertEl.textContent = msg;
-            }
-        })
-        .catch(function() {
-            alertEl.className = 'mb-4 p-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200';
-            alertEl.textContent = 'A network error occurred. Please try again.';
-        })
-        .finally(function() {
-            btn.disabled    = false;
-            btn.textContent = 'Update Password';
-        });
-    }
 </script>
 @endpush

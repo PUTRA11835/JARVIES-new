@@ -93,9 +93,7 @@ class PasswordSetupController extends Controller
                 ->first();
 
             if ($customer) {
-                $companyName = $customer->basicData->name_1
-                    ?? $customer->basicData->first_name
-                    ?? $authUser->email;
+                $companyName = $customer->basicData->name_1 ?? $authUser->email;
 
                 $token    = base64_encode($customer->customer_code . '|' . time() . '|customer');
                 $userData = [
@@ -104,8 +102,8 @@ class PasswordSetupController extends Controller
                     'customer_code' => $customer->customer_code,
                     'company_name'  => $companyName,
                     'email'         => $authUser->email,
-                    'category'      => $customer->customer_category ?? null,
-                    'group'         => $customer->customer_group ?? null,
+                    'category'      => $customer->basicData->customer_category ?? null,
+                    'group'         => $customer->basicData->customer_group ?? null,
                     'role'          => ['id' => 3, 'name' => 'Customer'],
                 ];
 
