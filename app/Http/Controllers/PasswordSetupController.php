@@ -95,13 +95,34 @@ class PasswordSetupController extends Controller
             if ($customer) {
                 $companyName = $customer->basicData->name_1 ?? $authUser->email;
 
+                // Fetch contact person profile (same logic as AuthController)
+                $contact = null;
+                if (!empty($authUser->contact_id)) {
+                    $contact = DB::table('customer_contact')
+                        ->where('contact_id', $authUser->contact_id)
+                        ->select('contact_id', 'full_name', 'position', 'department', 'cell_phone', 'email_work')
+                        ->first();
+                }
+                if (!$contact) {
+                    $contact = DB::table('customer_contact')
+                        ->where('customer_id', $authUser->customer_id)
+                        ->orderBy('contact_id')
+                        ->select('contact_id', 'full_name', 'position', 'department', 'cell_phone', 'email_work')
+                        ->first();
+                }
+
                 $token    = base64_encode($customer->customer_code . '|' . time() . '|customer');
                 $userData = [
                     'id'            => $customer->customer_id,
                     'type'          => 'customer',
                     'customer_code' => $customer->customer_code,
+                    'contact_id'    => $contact->contact_id ?? null,
+                    'name'          => $contact->full_name ?? $authUser->username,
                     'company_name'  => $companyName,
                     'email'         => $authUser->email,
+                    'position'      => $contact->position ?? null,
+                    'department'    => $contact->department ?? null,
+                    'phone'         => $contact->cell_phone ?? null,
                     'category'      => $customer->basicData->customer_category ?? null,
                     'group'         => $customer->basicData->customer_group ?? null,
                     'role'          => ['id' => 3, 'name' => 'Customer'],

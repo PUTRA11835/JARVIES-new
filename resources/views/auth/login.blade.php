@@ -310,6 +310,7 @@
 
                 const response = await fetch(form.action, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'Accept': 'application/json',

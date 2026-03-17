@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\CustomerEmailToken;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
+use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
 use App\Services\CustomerEmailService;
+use App\Services\GraphRelayService;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -285,50 +288,128 @@ class TicketController extends Controller
         if ($roleId == 3) {
             $validated = $request->validate([
                 'description'     => 'required|string',
-                'ticket_priority' => 'nullable|in:Low,Medium,High',
+                'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
                 'body'            => 'nullable|string',
+                'cc_emails'       => 'nullable|array|max:10',
+                'cc_emails.*'     => 'email',
+                'name'            => 'nullable|string|max:255',
+                'no_hp'           => 'nullable|string|max:255',
+                'module'          => 'nullable|string|max:255',
+                'client'          => 'nullable|string|max:255',
             ]);
 
+            // Normalisasi cc_emails: array email yang sudah divalidasi
+            $ccEmails   = array_values(array_filter($validated['cc_emails'] ?? []));
+            $ccEmailsJson = !empty($ccEmails) ? json_encode($ccEmails) : null;
+
             try {
+                $emailToken = CustomerEmailToken::where('customer_id', $user['id'])->first();
+                $hasEmail   = $emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token);
+
+                // Jika ada email OAuth → kirim email saja, biarkan processInbox buat staging
+                if ($hasEmail) {
+                    $senderName   = $user['name'] ?? $user['company_name'] ?? $user['email'] ?? 'Customer';
+                    $emailSubject = $validated['description'];
+
+                    // Susun body email + info tambahan jika diisi
+                    $extraLines = [];
+                    if (!empty($validated['name']))   $extraLines[] = 'Name   : ' . $validated['name'];
+                    if (!empty($validated['no_hp']))  $extraLines[] = 'No HP  : ' . $validated['no_hp'];
+                    if (!empty($validated['module'])) $extraLines[] = 'Module : ' . $validated['module'];
+                    if (!empty($validated['client'])) $extraLines[] = 'Client : ' . $validated['client'];
+
+                    $emailBody = ($validated['body'] ?? '');
+                    if ($extraLines) {
+                        $emailBody .= "\n\n--- Informasi Tambahan ---\n" . implode("\n", $extraLines);
+                    }
+                    $emailBody .= "\n\n-- \n" . $senderName;
+
+                    $toEmail  = env('MS_SENDER_EMAIL');
+                    $service  = new CustomerEmailService();
+                    $threadId = $service->sendEmail(
+                        $emailToken, $toEmail, $emailSubject, $emailBody,
+                        null, null, [], [], '', $ccEmails
+                    );
+
+                    return response()->json([
+                        'success'    => true,
+                        'staging'    => true,
+                        'email_sent' => $threadId !== null,
+                        'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
+                    ], 201);
+                }
+
+                // Tidak ada email OAuth → kirim ke EcoSystem API agar relay email bisa berjalan
+                // (EcoSystem menyimpan ke staging_tickets dan kirim notifikasi approval via email helpdesk)
+                $ecosystemUrl = rtrim(env('ECOSYSTEM_API_URL', 'https://ecosystem.eclecticoffice.com/api'), '/');
+                $apiKey       = env('EXTERNAL_TICKET_API_KEY');
+                $senderName   = $user['name'] ?? $user['company_name'] ?? null;
+                $senderEmail  = $user['email'] ?? null;
+
+                // Konversi body plain text ke HTML sederhana agar konsisten dengan format EcoSystem
+                $bodyHtml = $validated['body'] ?? '';
+                if ($bodyHtml && !str_starts_with(ltrim($bodyHtml), '<')) {
+                    $bodyHtml = '<p>' . nl2br(htmlspecialchars($bodyHtml)) . '</p>';
+                }
+
+                $apiResponse = Http::withHeaders([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'X-Api-Key'    => $apiKey,
+                ])->timeout(15)->post("{$ecosystemUrl}/staging-tickets", [
+                    'description'        => $validated['description'],
+                    'body'               => $bodyHtml ?: null,
+                    'ticket_priority'    => $validated['ticket_priority'] ?? 'Medium',
+                    'sender_name'        => $senderName,
+                    'submitted_by_email' => $senderEmail,
+                    'cc_emails'          => $ccEmailsJson,
+                    'customer_id'        => $user['id'],
+                    'contact_id'         => $user['contact_id'] ?? null,
+                    'name'               => $validated['name'] ?? null,
+                    'no_hp'              => $validated['no_hp'] ?? null,
+                    'module'             => $validated['module'] ?? null,
+                    'client'             => $validated['client'] ?? null,
+                ]);
+
+                if ($apiResponse->successful()) {
+                    Log::info('TicketController@store: staging via EcoSystem API OK', [
+                        'customer_id' => $user['id'],
+                        'status'      => $apiResponse->status(),
+                    ]);
+
+                    return response()->json([
+                        'success'    => true,
+                        'staging'    => true,
+                        'email_sent' => false,
+                        'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
+                    ], 201);
+                }
+
+                // Fallback: EcoSystem API gagal → simpan staging lokal agar tidak hilang
+                Log::warning('TicketController@store: EcoSystem API failed, fallback to local staging', [
+                    'status' => $apiResponse->status(),
+                    'body'   => $apiResponse->body(),
+                ]);
+
                 $stagingService = new StagingTicketService();
                 $staging = $stagingService->createFromWeb(
-                    $validated,
+                    array_merge($validated, [
+                        'cc_emails'  => $ccEmailsJson,
+                        'contact_id' => $user['contact_id'] ?? null,
+                        'name'       => $validated['name'] ?? null,
+                        'no_hp'      => $validated['no_hp'] ?? null,
+                        'module'     => $validated['module'] ?? null,
+                        'client'     => $validated['client'] ?? null,
+                    ]),
                     $user['id'],
-                    $user['email'] ?? null
+                    $senderEmail,
+                    $senderName
                 );
-
-                // Kirim email notifikasi dari akun customer jika ada OAuth token
-                $emailSent = false;
-                $emailToken = CustomerEmailToken::where('customer_id', $user['id'])->first();
-
-                if ($emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token)) {
-                    try {
-                        // Prefix [PENDING] agar email processor tidak buat ticket duplikat
-                        // EmailController@processInbox mengenali prefix ini dan hanya update email_thread_id
-                        $emailSubject = '[PENDING] ' . $staging->description;
-                        $emailBody    = "Your ticket request has been received and is awaiting validation.\n\n"
-                            . ($validated['body'] ?? '');
-
-                        $toEmail    = env('MS_SENDER_EMAIL');
-                        $service    = new CustomerEmailService();
-                        $threadId   = $service->sendEmail($emailToken, $toEmail, $emailSubject, $emailBody);
-                        $emailSent  = $threadId !== null;
-
-                        // Store threadId for future replies in the same thread
-                        if ($threadId) {
-                            $staging->update(['email_thread_id' => $threadId]);
-                        }
-                    } catch (\Throwable $e) {
-                        Log::warning('TicketController@store: staging email send failed (non-fatal)', [
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
 
                 return response()->json([
                     'success'    => true,
                     'staging'    => true,
-                    'email_sent' => $emailSent,
+                    'email_sent' => false,
                     'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
                     'data'       => [
                         'id'              => $staging->id,
@@ -356,7 +437,7 @@ class TicketController extends Controller
             // Admin
             $validated = $request->validate([
                 'description'     => 'required|string',
-                'ticket_priority' => 'required|in:Low,Medium,High',
+                'ticket_priority' => 'required|in:Very High,High,Medium,Low',
                 'customer_id'     => 'required|exists:customer,customer_id',
                 'body'            => 'nullable|string',
             ]);
@@ -426,7 +507,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($payload, [
             'description' => 'required|string',
-            'ticket_priority' => 'nullable|in:Low,Medium,High',
+            'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
             'customer_id' => 'required_without_all:customer_code,external_number|exists:customer,customer_id',
             'customer_code' => 'required_without_all:customer_id,external_number|exists:customer,customer_code',
             'external_number' => 'nullable|customer_id,customer_code|exists:customer_basic_data,external_number',
@@ -1159,6 +1240,9 @@ class TicketController extends Controller
                         'employee_id'   => $m->employee_id,
                         'employee_name' => $m->basicData->first_name ?? 'Unknown',
                     ]),
+                    'email_thread_id'         => $ticket->email_thread_id,
+                    'channel'                 => $ticket->channel,
+                    'mandays_proposal_status' => $ticket->mandays_proposal_status ?? 'none',
                     'created_at' => $ticket->created_at,
                     'updated_at' => $ticket->updated_at,
                 ];
@@ -1243,6 +1327,23 @@ class TicketController extends Controller
     }
 
     /**
+     * Map MIME type ke attachment_type enum.
+     */
+    private function getAttachmentType(string $mime): string
+    {
+        if (str_starts_with($mime, 'image/'))                                    return 'image';
+        if ($mime === 'application/pdf')                                          return 'pdf';
+        if (in_array($mime, ['application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])) return 'document';
+        if (in_array($mime, ['application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/csv']))                                                          return 'spreadsheet';
+        if (in_array($mime, ['application/zip', 'application/x-rar-compressed',
+            'application/x-zip-compressed']))                                      return 'archive';
+        return 'file';
+    }
+
+    /**
      * AJAX: Add a comment/reply to a ticket (Customer or Admin)
      * URL: POST /tickets/{id}/comment
      */
@@ -1263,15 +1364,71 @@ class TicketController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'comment' => 'required|string|max:5000',
+                'comment'       => 'nullable|string|max:5000',
+                'attachments'   => 'nullable|array|max:5',
+                'attachments.*' => 'file|max:10240|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip,rar,csv,mp4,mov',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Pesan tidak boleh kosong.',
+                    'message' => $validator->errors()->first(),
                     'errors'  => $validator->errors(),
                 ], 422);
+            }
+
+            $hasText  = $request->filled('comment');
+            $hasFiles = $request->hasFile('attachments');
+
+            // Pisahkan dua jenis attachment:
+            // - $inlineImages : gambar yang di-paste langsung di Quill (data URI) → tampil inline di body email
+            // - $fileAttachments: file dari tombol attachment → MIME attachment biasa (downloadable)
+            // File TIDAK disimpan lokal; EcoSystem processInbox menyimpan metadata ke ticket_attachment.
+            $inlineImages    = [];
+            $fileAttachments = [];
+            $htmlBody        = $request->input('comment_html', '');
+
+            // 1. Ekstrak gambar inline dari Quill HTML (Ctrl+V / paste)
+            //    Ganti data URI dengan cid: reference agar tampil inline di email client
+            if ($htmlBody) {
+                preg_match_all(
+                    '/<img[^>]+src="(data:(image\/[a-zA-Z+\-]+);base64,([A-Za-z0-9+\/=\s]+))"[^>]*>/i',
+                    $htmlBody,
+                    $imgMatches,
+                    PREG_SET_ORDER
+                );
+                foreach ($imgMatches as $i => $m) {
+                    $mime    = strtolower($m[2]);
+                    $content = base64_decode(preg_replace('/\s+/', '', $m[3]));
+                    $ext     = ltrim(strrchr($mime, '/'), '/');
+                    $ext     = str_replace(['+xml', '+'], ['', '-'], $ext) ?: 'png';
+                    $cid     = 'img-' . ($i + 1) . '@jarvies';
+                    $name    = 'image-' . ($i + 1) . '.' . $ext;
+
+                    $inlineImages[] = [
+                        'name'    => $name,
+                        'content' => $content,
+                        'mime'    => $mime,
+                        'cid'     => $cid,
+                    ];
+                    // Ganti data URI di HTML body dengan cid: reference
+                    $htmlBody = str_replace($m[1], 'cid:' . $cid, $htmlBody);
+                }
+            }
+
+            // 2. File dari tombol attachment (regular file attachments)
+            if ($hasFiles) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileAttachments[] = [
+                        'name'    => $file->getClientOriginalName(),
+                        'content' => file_get_contents($file->getRealPath()),
+                        'mime'    => $file->getMimeType() ?: 'application/octet-stream',
+                    ];
+                }
+            }
+
+            if (!$hasText && empty($inlineImages) && empty($fileAttachments)) {
+                return response()->json(['success' => false, 'message' => 'Pesan tidak boleh kosong.'], 422);
             }
 
             $ticket = Ticket::findOrFail($id);
@@ -1282,61 +1439,172 @@ class TicketController extends Controller
             }
 
             $senderName = $roleId == 3
-                ? ($sessionUser['company_name'] ?? $sessionUser['name'] ?? 'Customer')
+                ? ($sessionUser['name'] ?? $sessionUser['company_name'] ?? 'Customer')
                 : ($sessionUser['name'] ?? 'Admin');
 
-            // If customer has linked email, send via OAuth and mark channel as 'email'
-            $channel = 'web';
-            if ($roleId == 3) {
-                $emailToken = CustomerEmailToken::where('customer_id', $sessionUser['id'])->first();
-                if ($emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token)) {
-                    try {
-                        $service  = new CustomerEmailService();
-                        $threadId = $ticket->email_thread_id ?? null;
-                        $result   = $service->sendEmail(
-                            $emailToken,
-                            env('MS_SENDER_EMAIL'),
-                            $ticket->description,
-                            $request->input('comment'),
-                            $threadId
-                        );
-                        if ($result !== null) {
-                            $channel = 'email';
-                            // Update threadId on ticket if not yet set
-                            if (!$threadId && $result !== 'azure_sent') {
-                                $ticket->update(['email_thread_id' => $result]);
-                            }
-                        }
-                    } catch (\Throwable $e) {
-                        Log::warning('addComment: email send failed (non-fatal)', [
-                            'ticket_id' => $id,
-                            'error'     => $e->getMessage(),
-                        ]);
-                    }
-                }
-            }
-
-            TicketMessage::create([
-                'ticket_id'           => $ticket->ticket_id,
-                'sender_type'         => $roleId == 3 ? 'customer' : 'employee',
-                'sender_id'           => $sessionUser['id'],
-                'sender_email'        => $sessionUser['email'] ?? null,
-                'sender_name'         => $senderName,
-                'message'             => $request->input('comment'),
-                'is_internal_note'    => false,
-                'channel'             => $channel,
-                'is_read_by_customer' => $roleId == 3,
-                'is_read_by_agent'    => $roleId != 3,
+            Log::info('addComment: sender', [
+                'ticket_id'   => $id,
+                'sender_name' => $senderName,
+                'role_id'     => $roleId,
+                'user_id'     => $sessionUser['id'],
             ]);
 
-            // Update timestamp terakhir reply
-            $updateData = ['last_message_at' => now()];
             if ($roleId == 3) {
-                $updateData['last_customer_reply_at'] = now();
+                // Cek apakah customer punya OAuth email yang terhubung
+                $emailToken = CustomerEmailToken::where('customer_id', $sessionUser['id'])->first();
+                $hasOAuth   = $emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token);
+
+                if ($hasOAuth && $ticket->email_thread_id) {
+                    // === JALUR OAUTH + THREAD AKTIF ===
+                    // Kirim email langsung dari akun OAuth customer ke helpdesk M365.
+                    // JANGAN panggil customer-reply API — processInbox akan otomatis
+                    // menyimpan pesan ke DB saat email diterima M365 (1 jalur = tidak duplikat).
+
+                    $emailSubject = 'Ticket #' . $ticket->ticket_number . ': '
+                        . mb_substr($ticket->description ?? '', 0, 80);
+
+                    $lastEmailMsgId = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->where('channel', 'email')
+                        ->where('sender_type', '!=', 'customer')
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+
+                    $toEmail      = env('ECOSYSTEM_HELPDESK_EMAIL', env('MS_SENDER_EMAIL'));
+                    $emailService = new CustomerEmailService();
+                    $sent = $emailService->sendEmail(
+                        $emailToken,
+                        $toEmail,
+                        $emailSubject,
+                        (string) ($request->input('comment') ?? ''),
+                        null,
+                        $lastEmailMsgId,
+                        $fileAttachments,
+                        $inlineImages,
+                        $htmlBody
+                    );
+
+                    if ($sent === null) {
+                        return response()->json(['success' => false, 'message' => 'Failed to send email. Please try again.'], 500);
+                    }
+
+                    Log::info('addComment: OAuth email sent (no API call)', [
+                        'ticket_id'     => $ticket->ticket_id,
+                        'provider'      => $emailToken->provider,
+                        'from'          => $emailToken->provider_email,
+                        'to'            => $toEmail,
+                        'in_reply_to'   => $lastEmailMsgId,
+                        'files'         => count($fileAttachments),
+                        'inline_images' => count($inlineImages),
+                    ]);
+
+                } else {
+                    // === JALUR NON-OAUTH atau BELUM ADA THREAD ===
+                    // Kirim relay email FROM raditya TO customer via Microsoft Graph (email-first).
+                    // Simpan TicketMessage + TicketAttachment langsung ke DB (shared database).
+
+                    $senderEmail = $hasOAuth
+                        ? $emailToken->provider_email
+                        : ($sessionUser['email'] ?? null);
+
+                    // Ambil email_message_id terakhir dalam thread untuk header In-Reply-To
+                    $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+
+                    // Siapkan HTML body (htmlBody sudah berisi cid: references untuk inline images)
+                    $relayHtml = $htmlBody
+                        ?: ('<p>' . nl2br(htmlspecialchars($request->input('comment', ''))) . '</p>');
+
+                    $graphService = new GraphRelayService();
+                    $result = $graphService->sendRelayEmail(
+                        $ticket,
+                        $senderEmail ?? '',
+                        $senderName,
+                        $relayHtml,
+                        $inReplyTo,
+                        $inlineImages,
+                        $fileAttachments
+                    );
+
+                    if (!$result) {
+                        return response()->json(['success' => false, 'message' => 'Failed to send message. Please try again.'], 500);
+                    }
+
+                    // Simpan TicketMessage ke DB
+                    $ticketMessage = TicketMessage::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'sender_type'         => 'customer',
+                        'sender_id'           => $sessionUser['id'],
+                        'sender_email'        => $senderEmail,
+                        'sender_name'         => $senderName,
+                        'message'             => $request->input('comment', ''),
+                        'message_html'        => $htmlBody ?: null,
+                        'channel'             => 'email',
+                        'email_message_id'    => $result['internet_message_id'],
+                        'is_internal_note'    => false,
+                        'is_read_by_customer' => true,
+                        'is_read_by_agent'    => false,
+                    ]);
+
+                    // Set email_thread_id dari conversationId jika belum ada
+                    if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
+                        $ticket->update(['email_thread_id' => $result['conversation_id']]);
+                    }
+
+                    $ticket->update(['last_message_at' => now()]);
+
+                    // Simpan TicketAttachment dengan Sent Items IDs (bukan draft IDs)
+                    foreach ($result['attachments'] as $att) {
+                        if (!$att['uploaded']) {
+                            continue;
+                        }
+                        TicketAttachment::create([
+                            'ticket_id'           => $ticket->ticket_id,
+                            'message_id'          => $ticketMessage->id,
+                            'uploaded_by_type'    => 'customer',
+                            'uploaded_by_id'      => $sessionUser['id'],
+                            'attachment_type'     => $this->getAttachmentType($att['mime'] ?? 'application/octet-stream'),
+                            'graph_message_id'    => $result['graph_message_id'],
+                            'graph_attachment_id' => $att['graph_att_id'],
+                            'content_id'          => $att['cid'] ?? null,
+                            'is_inline'           => $att['is_inline'],
+                            'file_name'           => $att['name'],
+                            'file_size'           => $att['size'],
+                            'mime_type'           => $att['mime'],
+                        ]);
+                    }
+
+                    Log::info('addComment: relay email sent via Graph', [
+                        'ticket_id'   => $ticket->ticket_id,
+                        'to'          => $senderEmail,
+                        'internet_id' => $result['internet_message_id'],
+                        'graph_msg'   => $result['graph_message_id'],
+                        'attachments' => count($result['attachments']),
+                    ]);
+                }
+
             } else {
-                $updateData['last_agent_reply_at'] = now();
+                // Admin reply → tulis langsung ke DB
+                TicketMessage::create([
+                    'ticket_id'           => $ticket->ticket_id,
+                    'sender_type'         => 'employee',
+                    'sender_id'           => $sessionUser['id'],
+                    'sender_email'        => $sessionUser['email'] ?? null,
+                    'sender_name'         => $senderName,
+                    'message'             => $request->input('comment'),
+                    'is_internal_note'    => false,
+                    'channel'             => 'web',
+                    'is_read_by_customer' => false,
+                    'is_read_by_agent'    => true,
+                ]);
+
+                $ticket->update([
+                    'last_message_at'    => now(),
+                    'last_agent_reply_at' => now(),
+                ]);
             }
-            $ticket->update($updateData);
 
             return response()->json([
                 'success' => true,
@@ -1345,7 +1613,7 @@ class TicketController extends Controller
 
         } catch (\Exception $e) {
             Log::error('addComment error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['success' => false, 'message' => 'Gagal mengirim pesan.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to send message.'], 500);
         }
     }
 
@@ -1366,7 +1634,7 @@ class TicketController extends Controller
 
         $validator = Validator::make($request->all(), [
             'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
-            'ticket_priority' => 'sometimes|string|in:Low,Medium,High',
+            'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
             'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
             'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);

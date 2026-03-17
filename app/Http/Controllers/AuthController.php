@@ -296,7 +296,6 @@ class AuthController extends Controller
                     ->select(
                         'c.customer_id',
                         'c.customer_code',
-                        'c.email',
                         'c.is_active',
                         'cb.title',
                         'cb.name_1',
@@ -314,25 +313,48 @@ class AuthController extends Controller
                     ], 403);
                 }
 
+                // Ambil data contact person (nama, posisi, telepon)
+                // contact_id di auth_users bisa null untuk akun lama → fallback ke contact pertama
+                $contact = null;
+                if (!empty($authUser->contact_id)) {
+                    $contact = DB::table('customer_contact')
+                        ->where('contact_id', $authUser->contact_id)
+                        ->select('contact_id', 'full_name', 'position', 'department', 'cell_phone', 'email_work')
+                        ->first();
+                }
+                if (!$contact) {
+                    // Backward compatibility: akun lama tanpa contact_id
+                    $contact = DB::table('customer_contact')
+                        ->where('customer_id', $authUser->customer_id)
+                        ->orderBy('contact_id')
+                        ->select('contact_id', 'full_name', 'position', 'department', 'cell_phone', 'email_work')
+                        ->first();
+                }
+
                 // Update last_login_at
                 DB::table('auth_users')->where('id', $authUser->id)->update(['last_login_at' => now()]);
 
                 $tokenData = $customer->customer_code . '|' . time() . '|customer';
-                $token = base64_encode($tokenData);
+                $token     = base64_encode($tokenData);
                 $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
 
                 $userData = [
-                    'id' => $customer->customer_id,
-                    'type' => 'customer',
+                    'id'            => $customer->customer_id,
+                    'type'          => 'customer',
                     'customer_code' => $customer->customer_code,
-                    'company_name' => $companyName,
-                    'email' => $authUser->email,
-                    'category' => $customer->customer_category,
-                    'group' => $customer->customer_group,
-                    'role' => [
-                        'id' => 3,
-                        'name' => 'Customer'
-                    ]
+                    'contact_id'    => $contact->contact_id ?? null,
+                    'name'          => $contact->full_name ?? $authUser->username ?? null,
+                    'position'      => $contact->position ?? null,
+                    'department'    => $contact->department ?? null,
+                    'phone'         => $contact->cell_phone ?? null,
+                    'company_name'  => $companyName,
+                    'email'         => $authUser->email,
+                    'category'      => $customer->customer_category,
+                    'group'         => $customer->customer_group,
+                    'role'          => [
+                        'id'   => 3,
+                        'name' => 'Customer',
+                    ],
                 ];
 
                 $request->session()->put('auth_token', $token);
@@ -341,21 +363,22 @@ class AuthController extends Controller
                 $request->session()->save();
 
                 Log::channel('daily')->info('=== CUSTOMER LOGIN SUCCESSFUL ===', [
-                    'request_id' => $requestId,
-                    'customer_id' => $customer->customer_id,
-                    'customer_code' => $customer->customer_code,
-                    'ip_address' => $request->ip(),
-                    'timestamp' => now()->toDateTimeString()
+                    'request_id'   => $requestId,
+                    'customer_id'  => $customer->customer_id,
+                    'contact_id'   => $userData['contact_id'],
+                    'customer_code'=> $customer->customer_code,
+                    'ip_address'   => $request->ip(),
+                    'timestamp'    => now()->toDateTimeString(),
                 ]);
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Login successful.',
-                    'data' => [
+                    'data'    => [
                         'token' => $token,
-                        'user' => $userData
+                        'user'  => $userData,
                     ],
-                    'request_id' => $requestId
+                    'request_id' => $requestId,
                 ], 200);
             }
 
@@ -370,7 +393,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Email atau password salah',
+                'message' => 'Invalid email or password.',
                 'request_id' => $requestId
             ], 404);
 

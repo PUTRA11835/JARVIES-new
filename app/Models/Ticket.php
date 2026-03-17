@@ -29,6 +29,7 @@ class Ticket extends Model
         'man_days',
         'channel',
         'email_thread_id',
+        'customer_thread_id',
     ];
 
     protected $casts = [

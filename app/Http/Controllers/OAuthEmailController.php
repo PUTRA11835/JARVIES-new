@@ -111,8 +111,9 @@ class OAuthEmailController extends Controller
 
             // Validate: ensure gmail.send scope was granted (Google)
             if ($provider === 'google') {
-                $grantedScopes = $socialUser->accessTokenResponseBody['scope'] ?? '';
-                if (!str_contains($grantedScopes, 'gmail.send')) {
+                $approvedScopes = $socialUser->approvedScopes ?? [];
+                $scopeString = is_array($approvedScopes) ? implode(' ', $approvedScopes) : (string) $approvedScopes;
+                if (!empty($scopeString) && !str_contains($scopeString, 'gmail.send')) {
                     return redirect()->route('onboarding.connect-email')
                         ->with('oauth_error', 'The "Send email on your behalf" permission was not granted. Please try again and make sure to grant this permission.');
                 }

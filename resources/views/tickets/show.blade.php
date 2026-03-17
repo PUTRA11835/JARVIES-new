@@ -34,76 +34,99 @@
 <style>
 /* Quill editor overrides */
 .ql-toolbar.ql-snow {
-    border: none;
-    border-bottom: 1px solid #e5e7eb;
-    padding: 6px 12px;
+    border: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 4px 8px !important;
     background: #f9fafb;
 }
-.ql-container.ql-snow {
-    border: none;
-    font-size: 14px;
-    font-family: inherit;
-}
-.ql-editor {
-    min-height: 90px;
-    max-height: 160px;
-    overflow-y: auto;
-    padding: 10px 16px;
-    color: #374151;
-    line-height: 1.6;
-}
-.ql-editor.ql-blank::before {
-    color: #9ca3af;
-    font-style: normal;
-    left: 16px;
-}
+.ql-container.ql-snow { border: none !important; font-size: 13px; }
+.ql-editor { min-height: 80px; max-height: 180px; overflow-y: auto; padding: 8px 12px; color: #374151; line-height: 1.6; }
+.ql-editor.ql-blank::before { color: #9ca3af; font-style: normal; font-size: 13px; left: 12px; }
 .ql-toolbar .ql-formats { margin-right: 8px; }
 
-/* Sidebar ticket items */
-.sidebar-ticket-item {
-    display: block; padding: 8px 10px 8px 12px; border-radius: 7px;
-    transition: background 0.15s, border-color 0.15s; text-decoration: none;
-    background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.07);
-    border-left: 3px solid transparent;
+/* Toolbar tooltip on hover */
+.ql-toolbar button[title] { position: relative; }
+.ql-toolbar button[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 9999;
+    pointer-events: none;
 }
-.sidebar-ticket-item:hover { background: rgba(255,255,255,0.1); border-left-color: rgba(255,255,255,0.3); }
-.sidebar-ticket-item.active { background: rgba(255,255,255,0.16); border-left-color: rgba(255,255,255,0.75); }
+
+/* Sidebar ticket items — white card style */
+.sidebar-ticket-item {
+    display: block;
+    padding: 8px 10px 8px 12px;
+    border-radius: 7px;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    text-decoration: none;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-left: 3px solid transparent;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.sidebar-ticket-item:hover {
+    background: rgba(255,255,255,1);
+    border-left-color: #b91c1c;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.sidebar-ticket-item.active {
+    background: rgba(255,255,255,1);
+    border-left-color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
 
 /* Message bubbles */
 .message-bubble { max-width: 85%; word-break: break-word; }
-.bubble-customer { background: #eff6ff; border-radius: 12px 12px 4px 12px; }
-.bubble-employee { background: #f3f4f6; border-radius: 12px 12px 12px 4px; }
+
+/* Customer (self) — right side, blue-50 bg, sharp bottom-right corner */
+.bubble-customer {
+    background: #eff6ff;
+    border-radius: 12px 12px 4px 12px;
+}
+
+/* Employee / agent — left side, gray-100 bg, sharp bottom-left corner */
+.bubble-employee {
+    background: #f3f4f6;
+    border-radius: 12px 12px 12px 4px;
+}
 
 /* Channel badge */
 .msg-channel-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; vertical-align: middle; }
 .msg-channel-email { background: #dbeafe; color: #1d4ed8; }
 .msg-channel-web   { background: #f0fdf4; color: #15803d; }
 
-/* Email HTML body */
-.email-html-body { word-break: break-word; }
-.email-html-body p  { margin-bottom: 0.3rem; }
-.email-html-body a  { color: #2563eb; text-decoration: underline; }
-.email-html-body ul, .email-html-body ol { padding-left: 1.25rem; margin-bottom: 0.4rem; }
-.email-html-body blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
-.email-html-body img { max-width: 100%; height: auto; border-radius: 6px; }
+/* Email HTML body — scoped so styles don't leak outside bubble */
+.email-html-body               { word-break: break-word; }
+.email-html-body p             { margin-bottom: 0.3rem; }
+.email-html-body a             { color: #2563eb; text-decoration: underline; }
+.email-html-body ul,
+.email-html-body ol            { padding-left: 1.25rem; margin-bottom: 0.4rem; }
+.email-html-body blockquote    { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
+.email-html-body img           { max-width: 100%; height: auto; border-radius: 6px; }
+.email-html-body table         { border-collapse: collapse; font-size: 12px; max-width: 100%; }
+.email-html-body td,
+.email-html-body th            { border: 1px solid #e5e7eb; padding: 4px 8px; }
 
-/* Message content */
-.message-content p { margin-bottom: 0.25rem; }
-.message-content p:last-child { margin-bottom: 0; }
-.message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.message-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
-
-/* Quill HTML content */
-.quill-content p { margin-bottom: 0.25rem; }
-.quill-content p:last-child { margin-bottom: 0; }
-.quill-content a { color: #2563eb; text-decoration: underline; }
-.quill-content ul, .quill-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
-.quill-content blockquote { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; margin: 0.25rem 0; }
-.quill-content img { max-width: 100%; height: auto; border-radius: 4px; }
-.quill-content h1, .quill-content h2, .quill-content h3 { font-weight: 600; margin-bottom: 0.25rem; }
-
-/* Email iframe */
-.email-frame { width: 100%; min-height: 60px; border: none; display: block; }
+/* Quill message content */
+.message-content p             { margin-bottom: 0.25rem; }
+.message-content p:last-child  { margin-bottom: 0; }
+.message-content ul,
+.message-content ol            { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.message-content blockquote    { border-left: 3px solid #d1d5db; padding-left: 0.75rem; color: #6b7280; }
+.message-content a             { color: #2563eb; text-decoration: underline; }
+.message-content img           { max-width: 100%; height: auto; border-radius: 4px; }
+.message-content h1, .message-content h2, .message-content h3 { font-weight: 600; margin-bottom: 0.25rem; }
 </style>
 @endpush
 
@@ -181,23 +204,29 @@
         {{-- Compose Area --}}
         <div class="border-t border-gray-200 shrink-0">
 
-            {{-- Channel mode indicator --}}
-            @if($ticket->channel === 'email')
+            {{-- Channel mode indicator (diupdate JS setelah reply) --}}
+            <div id="channelIndicator">
+            @if($ticket->email_thread_id || $ticket->channel === 'email')
             <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
                     <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
                 </svg>
-                <span>Balasan akan dikirim ke tim support via <strong>Email</strong></span>
+                @if($ticket->channel === 'email')
+                    <span>Replies will be sent to the support team via <strong>Email</strong></span>
+                @else
+                    <span>Email thread active — helpdesk replies will be sent to <strong>your email</strong></span>
+                @endif
             </div>
             @else
             <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
                 </svg>
-                <span>Balasan hanya tampil di <strong>Jarvies</strong> — tidak ada email yang dikirim</span>
+                <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
             </div>
             @endif
+            </div>
 
             <div class="px-4 pt-2 pb-2">
                 <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
@@ -216,7 +245,7 @@
                     <button onclick="sendReply()" id="sendBtn"
                         class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                         <svg id="sendIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
                         </svg>
                         <svg id="sendSpinner" class="hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -328,18 +357,23 @@
                     </div>
                 </div>
 
+
             </div>
         </div>
     </div>
 
 </div>
 
+
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const ticketId   = {{ $ticket->ticket_id }};
+const ticketDescription  = @json($ticket->description ?? '');
+const ticketCustomerName = @json(session('user.name') ?? session('user.company_name') ?? 'Customer');
+const ticketCreatedAt    = @json($ticket->created_at->toIso8601String());
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
-let renderedMessageIds = new Set();
+let lastMessageId = null;
 let allSidebarTickets  = [];
 let quill;
 let selectedFiles      = [];
@@ -441,11 +475,15 @@ function renderAttachmentPreview() {
                    : /\.(doc|docx)$/i.test(file.name) ? '📝'
                    : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
                    : /\.(zip|rar)$/i.test(file.name) ? '🗜️' : '📎';
-        return `<div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5" style="max-width:200px">
-            <span class="text-sm flex-shrink-0">${icon}</span>
-            <p class="text-xs font-medium text-gray-700 truncate flex-1" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
+        const size = formatFileSize(file.size);
+        return `<div class="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs max-w-[180px]">
+            <span class="flex-shrink-0">${icon}</span>
+            <div class="flex-1 min-w-0">
+                <p class="font-medium text-gray-700 truncate" title="${escHtml(file.name)}">${escHtml(file.name)}</p>
+                ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+            </div>
             <button type="button" onclick="removeAttachment(${idx})"
-                    class="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-red-500 text-xs leading-none">✕</button>
+                    class="flex-shrink-0 text-gray-400 hover:text-red-500 text-xs leading-none">✕</button>
         </div>`;
     }).join('');
 }
@@ -476,156 +514,233 @@ async function loadMessages() {
 
         if (loading) loading.style.display = 'none';
 
-        if (!data.success || !data.data || data.data.length === 0) {
-            if (renderedMessageIds.size === 0)
-                thread.innerHTML = `<div class="flex items-center justify-center py-10 text-gray-400 text-sm">Belum ada pesan. Mulai percakapan dengan mengirim balasan.</div>`;
-            return;
-        }
+        const messages = (data.success && data.data) ? data.data : [];
 
-        const messages    = data.data;
-        const isFirstLoad = renderedMessageIds.size === 0;
-        const newMessages = messages.filter(m => !renderedMessageIds.has(m.id));
-
-        if (newMessages.length === 0) return;
-
-        if (isFirstLoad) {
-            thread.innerHTML = messages.map(m => createMessageBubble(m)).join('');
-            messages.forEach(m => renderedMessageIds.add(m.id));
+        if (lastMessageId === null) {
+            // Initial load — render all messages
+            thread.innerHTML = '';
+            if (messages.length === 0) {
+                thread.innerHTML = createFallbackMessage();
+            } else {
+                messages.forEach(m => thread.insertAdjacentHTML('beforeend', createMessageBubble(m)));
+                lastMessageId = messages[messages.length - 1].id;
+            }
+            thread.scrollTop = thread.scrollHeight;
         } else {
-            newMessages.forEach(m => {
-                thread.insertAdjacentHTML('beforeend', createMessageBubble(m));
-                renderedMessageIds.add(m.id);
-            });
+            // Polling — only append messages newer than lastMessageId
+            const newMessages = messages.filter(m => m.id > lastMessageId);
+            if (newMessages.length > 0) {
+                newMessages.forEach(m => thread.insertAdjacentHTML('beforeend', createMessageBubble(m)));
+                lastMessageId = newMessages[newMessages.length - 1].id;
+                thread.scrollTop = thread.scrollHeight;
+            }
         }
-
-        setupEmailFrames();
-        thread.scrollTop = thread.scrollHeight;
 
     } catch (err) {
         if (loading) loading.style.display = 'none';
-        if (renderedMessageIds.size === 0)
-            thread.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">Gagal memuat pesan.</div>`;
+        if (lastMessageId === null) {
+            thread.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">Failed to load messages.</div>`;
+        }
     }
+}
+
+function createFallbackMessage() {
+    if (!ticketDescription) {
+        return `<div class="flex items-center justify-center py-10 text-gray-400 text-sm">No messages yet. Start the conversation by sending a reply.</div>`;
+    }
+    const initials = (ticketCustomerName || '?').substring(0, 1).toUpperCase();
+    const timeStr  = formatFullDate(new Date(ticketCreatedAt));
+    return `
+        <div class="flex gap-3 flex-row-reverse">
+            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+            <div class="text-right">
+                <div class="flex flex-col mb-1 items-end">
+                    <div class="flex items-center gap-2 flex-wrap justify-end">
+                        <span class="text-sm font-semibold text-gray-900">${escHtml(ticketCustomerName)}</span>
+                        <span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-semibold">Initial</span>
+                        <span class="text-xs text-gray-400">${timeStr}</span>
+                    </div>
+                </div>
+                <div class="message-bubble bubble-customer p-3 inline-block text-left">
+                    <p class="text-sm text-gray-700 whitespace-pre-wrap">${escHtml(ticketDescription)}</p>
+                </div>
+            </div>
+        </div>`;
 }
 
 // ==================== MESSAGE RENDERING ====================
 function createMessageBubble(msg) {
-    // Di JARVIES (customer portal):
-    // - employee → KIRI (support team)
-    // - semua non-employee (customer, external email, CC person) → KANAN (customer side)
-    const isEmployee  = msg.sender_type === 'employee';
-    // Hanya centered pill jika benar-benar system notification tanpa identitas pengirim
+    const isEmployee = msg.sender_type === 'employee';
     const hasIdentity = !!(msg.sender_name || msg.sender_email);
     const isSystem    = msg.sender_type === 'system' && !hasIdentity;
-    // Semua non-employee & non-system = tampil sebagai customer (KANAN)
-    const isCustomer  = !isEmployee && !isSystem;
-    const initials    = (msg.sender_name || '?').substring(0, 1).toUpperCase();
-    const timeStr     = formatTimeAgo(new Date(msg.created_at));
-    const isEmail     = msg.channel === 'email';
 
-    // System message tanpa pengirim → centered pill
+    // System message → centered pill
     if (isSystem) {
         return `<div class="flex justify-center my-2">
             <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">${escHtml(msg.message)}</span>
         </div>`;
     }
 
+    const initials = (msg.sender_name || '?').substring(0, 1).toUpperCase();
+    const timeStr  = formatFullDate(new Date(msg.created_at));
+    const isEmail  = msg.channel === 'email';
+
     // Channel badge
     const channelBadge = isEmail
-        ? `<span class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+        ? `<span class="msg-channel-badge msg-channel-email">
                <svg style="width:8px;height:8px" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
                Email</span>`
-        : `<span class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+        : `<span class="msg-channel-badge msg-channel-web">
                <svg style="width:8px;height:8px" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clip-rule="evenodd"/></svg>
                Web</span>`;
 
-    // CC line — cc_emails bisa berupa string "a@b.com" atau JSON array [{address:"a@b.com"}]
-    const ccStr = formatCcEmails(msg.cc_emails);
+    // CC line
+    const ccStr  = formatCcEmails(msg.cc_emails);
     const ccLine = ccStr
-        ? `<div class="text-[10px] text-gray-400 mt-1 ${isEmployee ? '' : 'text-right'}">CC: ${escHtml(ccStr)}</div>`
-        : '';
-
-    // Attachments
-    const attachHtml = (msg.attachments && msg.attachments.length)
-        ? `<div class="flex flex-wrap gap-1.5 mt-2">
-            ${msg.attachments.map(a => `
-                <a href="${escHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer"
-                   class="inline-flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded-lg text-[11px] text-gray-600 hover:text-red-700 hover:border-red-200 transition-colors">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                    </svg>
-                    ${escHtml(a.file_name)}
-                </a>`).join('')}
-           </div>`
+        ? `<span class="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+               <svg style="width:10px;height:10px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+               <span class="font-medium text-gray-500">CC:</span>
+               <span>${escHtml(ccStr)}</span>
+           </span>`
         : '';
 
     // Message body
-    // - Email channel       → tampilkan 'message' (plain text sudah di-strip email processor)
-    //                         untuk bubble compact — sama seperti tampilan EcoSystem
-    // - Web + employee      → message_html / message berisi Quill HTML → render as HTML
-    // - Web + customer/ext  → plain text dari textarea JARVIES → escape
-    let msgBody;
-    if (isEmail) {
-        // Gunakan plain text agar bubble compact dan tidak ada whitespace berlebih dari iframe
-        const plainText = (msg.message || '').trim();
-        if (plainText) {
-            msgBody = `<p class="text-sm text-gray-800 whitespace-pre-wrap">${escHtml(plainText)}</p>`;
-        } else if (msg.message_html) {
-            // Fallback: iframe hanya jika tidak ada plain text sama sekali
-            msgBody = `<iframe class="email-frame" data-srcdoc="${encodeURIComponent(msg.message_html)}"
-                sandbox="allow-same-origin" scrolling="no"
-                style="width:100%;min-height:30px;border:none;display:block;"></iframe>`;
-        } else {
-            msgBody = `<p class="text-sm text-gray-400 italic">(pesan kosong)</p>`;
-        }
+    let msgContent;
+    if (isEmail && msg.message_html) {
+        // Email with HTML — render directly with scoped CSS (no iframe needed)
+        msgContent = `<div class="message-content text-sm text-gray-700 email-html-body">${msg.message_html}</div>`;
+    } else if (isEmployee) {
+        // Employee web reply via Quill
+        msgContent = `<div class="message-content text-sm text-gray-700">${msg.message_html || msg.message_body || msg.message || ''}</div>`;
     } else {
-        if (isEmployee) {
-            // Employee/helpdesk reply via Quill editor → message field berisi HTML
-            msgBody = `<div class="quill-content text-sm text-gray-800">${msg.message_html || msg.message || ''}</div>`;
-        } else {
-            // Customer atau external email sender → plain text
-            msgBody = `<p class="text-sm text-gray-800 whitespace-pre-wrap">${escHtml(msg.message || '')}</p>`;
-        }
+        // Customer plain text
+        msgContent = `<p class="text-sm text-gray-700 whitespace-pre-wrap">${escHtml(msg.message || '')}</p>`;
     }
 
-    // Employee              → KIRI,  avatar biru,   bubble abu
-    // Customer (sender_type=customer) → KANAN, avatar merah,  bubble merah muda
-    // External/CC email    → KANAN, avatar ungu, bubble merah muda
-    const avatarBg  = isEmployee
-        ? 'bg-gray-400'
-        : (msg.sender_type === 'customer' ? 'bg-blue-600' : 'bg-blue-500');
-    const bubbleCls = isEmployee ? 'bubble-employee' : 'bubble-customer';
+    // Attachments
+    const isEmailWithHtml = isEmail && !!msg.message_html;
+    const attachHtml = renderAttachments(msg.attachments, isEmailWithHtml);
 
-    return `
-        <div class="flex gap-3 items-start ${isEmployee ? '' : 'flex-row-reverse'}">
-            <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
-            <div class="max-w-[75%] ${isEmployee ? '' : 'flex flex-col items-end'}">
-                <div class="flex items-center gap-2 mb-1 flex-wrap ${isEmployee ? '' : 'justify-end'}">
-                    <span class="text-sm font-semibold text-gray-900">${escHtml(msg.sender_name || 'Unknown')}</span>
-                    ${channelBadge}
-                    <span class="text-xs text-gray-400">${timeStr}</span>
+    // Employee (agent/helpdesk) → LEFT side
+    if (isEmployee) {
+        return `
+        <div class="flex gap-3">
+            <div class="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+            <div>
+                <div class="flex flex-col mb-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-semibold text-gray-900">${escHtml(msg.sender_name || 'Unknown')}</span>
+                        ${channelBadge}
+                        <span class="text-xs text-gray-400">${timeStr}</span>
+                    </div>
+                    ${ccLine}
                 </div>
-                ${ccLine}
-                <div class="message-bubble ${bubbleCls} px-4 py-2.5">
-                    ${msgBody}
+                <div class="message-bubble bubble-employee p-3 inline-block text-left">
+                    ${msgContent}
+                    ${attachHtml}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // Customer (self) or external → RIGHT side
+    const avatarBg = msg.sender_type === 'customer' ? 'bg-blue-600' : 'bg-blue-500';
+    return `
+        <div class="flex gap-3 flex-row-reverse">
+            <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+            <div class="text-right">
+                <div class="flex flex-col mb-1 items-end">
+                    <div class="flex items-center gap-2 flex-wrap justify-end">
+                        <span class="text-sm font-semibold text-gray-900">${escHtml(msg.sender_name || 'Unknown')}</span>
+                        ${channelBadge}
+                        <span class="text-xs text-gray-400">${timeStr}</span>
+                    </div>
+                    ${ccLine}
+                </div>
+                <div class="message-bubble bubble-customer p-3 inline-block text-left">
+                    ${msgContent}
                     ${attachHtml}
                 </div>
             </div>
         </div>`;
 }
 
-function setupEmailFrames() {
-    document.querySelectorAll('iframe.email-frame').forEach(frame => {
-        if (frame.dataset.initialized) return;
-        frame.dataset.initialized = '1';
-        frame.srcdoc = decodeURIComponent(frame.dataset.srcdoc || '');
-        frame.addEventListener('load', () => {
-            try {
-                const h = frame.contentDocument?.documentElement?.scrollHeight;
-                if (h) frame.style.minHeight = Math.min(h + 20, 600) + 'px';
-            } catch {}
-        }, { once: true });
+function renderAttachments(attachments, isEmailWithHtml = false) {
+    if (!attachments || attachments.length === 0) return '';
+
+    // Inline images already embedded in message_html — skip their thumbnails
+    const files = isEmailWithHtml
+        ? attachments.filter(a => !a.is_inline)
+        : attachments;
+
+    if (files.length === 0) return '';
+
+    let html = '<div class="mt-2 space-y-1">';
+    files.forEach(file => {
+        const icon  = attachmentIcon(file.attachment_type, file.mime_type);
+        const size  = formatFileSize(file.file_size);
+        const isImg = file.mime_type?.startsWith('image/');
+        const url   = escHtml(file.url || '#');
+        html += `
+            <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
+                <span class="text-lg flex-shrink-0">${icon}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
+                    ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    ${isImg ? `<a href="${url}" target="_blank" rel="noopener" class="text-xs text-blue-500 hover:underline">View</a>` : ''}
+                    <a href="${url}" target="_blank" rel="noopener" class="text-xs text-blue-500 hover:underline">Download</a>
+                </div>
+            </div>`;
     });
+    html += '</div>';
+    return html;
+}
+
+function attachmentIcon(type, mime) {
+    if (mime?.startsWith('image/'))  return '🖼️';
+    if (type === 'pdf')              return '📄';
+    if (type === 'document')         return '📝';
+    if (type === 'spreadsheet')      return '📊';
+    if (type === 'archive')          return '🗜️';
+    return '📎';
+}
+
+function formatFileSize(bytes) {
+    if (!bytes)           return '';
+    if (bytes < 1024)     return bytes + ' B';
+    if (bytes < 1048576)  return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ==================== CHANNEL INDICATOR ====================
+function updateChannelIndicator(emailThreadId, channel) {
+    const el = document.getElementById('channelIndicator');
+    if (!el) return;
+    const emailIcon = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>`;
+    const chatIcon  = `<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg>`;
+    if (emailThreadId || channel === 'email') {
+        const text = channel === 'email'
+            ? 'Replies will be sent to the support team via <strong>Email</strong>'
+            : 'Email thread active — helpdesk replies will be sent to <strong>your email</strong>';
+        el.innerHTML = `<div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">${emailIcon}<span>${text}</span></div>`;
+    } else {
+        el.innerHTML = `<div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">${chatIcon}<span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span></div>`;
+    }
+}
+
+async function refreshIndicator() {
+    try {
+        const res  = await fetch(`/tickets/${ticketId}`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (data.success) {
+            updateChannelIndicator(data.data.email_thread_id, data.data.channel);
+        }
+    } catch (_) { /* silent */ }
 }
 
 // ==================== SEND REPLY ====================
@@ -635,7 +750,7 @@ async function sendReply() {
     const hasFiles    = selectedFiles.length > 0;
 
     if (!comment && !hasFiles) {
-        showNotification('Pesan tidak boleh kosong.', 'error');
+        showNotification('Message cannot be empty.', 'error');
         return;
     }
 
@@ -670,9 +785,10 @@ async function sendReply() {
             quill.setContents([]);
             resetAttachments();
             await loadMessages();
-            showNotification('Pesan terkirim.', 'success');
+            refreshIndicator();
+            showNotification('Message sent.', 'success');
         } else {
-            showNotification(data.message || 'Gagal mengirim pesan.', 'error');
+            showNotification(data.message || 'Failed to send message.', 'error');
         }
     } catch (err) {
         showNotification('Error: ' + err.message, 'error');
@@ -709,38 +825,35 @@ function renderSidebarTickets(tickets) {
     if (!list) return;
 
     if (tickets.length === 0) {
-        list.innerHTML = '<p class="text-white/40 text-xs text-center py-4">No tickets found.</p>';
+        list.innerHTML = '<p class="text-gray-500 text-xs text-center py-4">No tickets found.</p>';
         return;
     }
 
     list.innerHTML = tickets.map(t => {
-        const isActive   = t.ticket_id === ticketId;
-        const desc       = t.description || 'No description';
-        const shortDesc  = desc.length > 36 ? desc.substring(0, 36) + '…' : desc;
-        const lastDate   = t.last_message_at || t.created_at;
-        const timeAgo    = formatTimeAgo(new Date(lastDate));
-        const prioColors = { Low: 'bg-green-400', Medium: 'bg-blue-400', High: 'bg-red-400' };
-        const prioDot    = prioColors[t.ticket_priority] || 'bg-gray-500';
-        const ticketNum  = t.ticket_number || 'Pending';
-        const statusMap  = {
-            'in process': 'bg-blue-400', 'author action': 'bg-amber-400',
-            'proposed solution': 'bg-purple-400', 'sent in to SAP': 'bg-indigo-400', 'closed': 'bg-green-400'
+        const isActive  = t.ticket_id === ticketId;
+        const desc      = t.description || 'No description';
+        const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '…' : desc;
+        const lastDate  = t.last_message_at || t.created_at;
+        const timeAgo   = formatTimeAgo(new Date(lastDate));
+        const prioColors = {
+            'Very High': 'bg-purple-500',
+            'High':      'bg-red-400',
+            'Medium':    'bg-blue-400',
+            'Low':       'bg-green-400'
         };
-        const statusDot = statusMap[t.jarvies_status] || 'bg-gray-500';
+        const prioDot  = prioColors[t.ticket_priority] || 'bg-gray-400';
+        const ticketNum = t.ticket_number || ('#' + t.ticket_id);
 
         return `
             <a href="/tickets/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
-                <div class="flex items-center justify-between mb-1">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <div class="w-1.5 h-1.5 rounded-full ${statusDot} shrink-0"></div>
-                        <span class="text-[11px] font-bold text-white/90 truncate">${escHtml(ticketNum)}</span>
-                    </div>
-                    <span class="text-[10px] text-white/40 shrink-0 ml-1">${timeAgo}</span>
+                <div class="flex items-center justify-between mb-0.5">
+                    <span class="text-xs font-semibold text-gray-800 truncate max-w-[140px]">${escHtml(ticketNum)}</span>
+                    <span class="text-[10px] text-gray-400 shrink-0 ml-1">${timeAgo}</span>
                 </div>
-                <p class="text-[11px] text-white/65 truncate mb-1.5 pl-3">${escHtml(shortDesc)}</p>
-                <div class="flex items-center gap-1.5 pl-3">
-                    <div class="w-1.5 h-1.5 rounded-full ${prioDot}"></div>
-                    <span class="text-[10px] text-white/45">${t.ticket_priority || '—'}</span>
+                <p class="text-[11px] text-gray-500 truncate mb-1">${escHtml(shortDesc)}</p>
+                <div class="flex items-center gap-1.5">
+                    <div class="w-1.5 h-1.5 rounded-full ${prioDot} shrink-0"></div>
+                    <span class="text-[10px] text-gray-400">${t.ticket_priority || 'Medium'}</span>
                 </div>
             </a>`;
     }).join('');
@@ -777,6 +890,27 @@ function formatCcEmails(cc) {
     return String(cc);
 }
 
+// Format: "13 Mar 2026, 11:59 (WIB)"
+function formatFullDate(date) {
+    try {
+        return date.toLocaleString('en-GB', {
+            timeZone: 'Asia/Jakarta',
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+        }) + ' (WIB)';
+    } catch {
+        // Fallback for older browsers that don't support timeZone option
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const dd   = String(date.getUTCDate()).padStart(2, '0');
+        const mon  = months[date.getUTCMonth()];
+        const yyyy = date.getUTCFullYear();
+        const hh   = String(date.getUTCHours()).padStart(2, '0');
+        const mm   = String(date.getUTCMinutes()).padStart(2, '0');
+        return `${dd} ${mon} ${yyyy}, ${hh}:${mm} (WIB)`;
+    }
+}
+
+// Format relatif untuk sidebar ticket list: "3m ago", "2d ago"
 function formatTimeAgo(date) {
     const diff = Date.now() - date.getTime();
     const m    = Math.floor(diff / 60000);
@@ -802,5 +936,6 @@ function showNotification(msg, type = 'info') {
     document.body.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 350); }, 3000);
 }
+
 </script>
 @endsection

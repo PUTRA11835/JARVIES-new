@@ -19,26 +19,33 @@ class StagingTicketService
     /**
      * Simpan tiket baru dari form web customer ke tabel staging.
      *
-     * @param  array  $data            Validated data dari request (description, ticket_priority, body)
+     * @param  array  $data            Validated data dari request (description, ticket_priority, body, cc_emails)
      * @param  int    $customerId      ID customer dari session
      * @param  string|null $customerEmail  Email customer (untuk referensi)
      * @return StagingTicket
      */
-    public function createFromWeb(array $data, int $customerId, ?string $customerEmail = null): StagingTicket
+    public function createFromWeb(array $data, int $customerId, ?string $customerEmail = null, ?string $senderName = null): StagingTicket
     {
         $staging = StagingTicket::create([
             'customer_id'        => $customerId,
             'description'        => $data['description'],
             'body'               => $data['body'] ?? null,
-            'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
+            'cc_emails'          => $data['cc_emails'] ?? null,
+            'name'               => $data['name'] ?? null,
+            'no_hp'              => $data['no_hp'] ?? null,
+            'module'             => $data['module'] ?? null,
+            'client'             => $data['client'] ?? null,
+            'ticket_priority'    => $data['ticket_priority'] ?? 'Medium', // Very High|High|Medium|Low
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $customerEmail,
+            'sender_name'        => $senderName,
         ]);
 
         Log::info('StagingTicketService: new staging ticket created', [
             'staging_id'  => $staging->id,
             'customer_id' => $customerId,
+            'sender_name' => $senderName,
             'priority'    => $staging->ticket_priority,
         ]);
 

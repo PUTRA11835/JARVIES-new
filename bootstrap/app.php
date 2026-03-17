@@ -11,6 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Trust all proxies — required when deployed behind nginx/Apache reverse proxy
+        $middleware->trustProxies(at: '*');
+
         // Register custom middleware aliases
         $middleware->alias([
             'jarvies.auth' => \App\Http\Middleware\JarviesAuth::class,

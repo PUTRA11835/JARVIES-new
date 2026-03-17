@@ -2,185 +2,143 @@
 
 @section('title', 'Dashboard')
 @section('page-title', 'Dashboard')
-@section('page-subtitle', 'Welcome back, ' . session('user.name', 'User') . '!')
+@section('page-subtitle', 'Welcome back, ' . (session('user.name') ?? session('user.company_name', 'User')) . '!')
 
 @section('header-actions')
-<a href="{{ route('tickets.index') }}" class="flex items-center space-x-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+<a href="{{ route('tickets.create') }}" class="flex items-center space-x-2 bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
     </svg>
-    <span>View Tickets</span>
+    <span>New Ticket</span>
 </a>
 @endsection
 
 @section('content')
 
 {{-- Stats Cards --}}
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
     @php
         $statCards = [
-            ['label' => 'Unresolved', 'value' => $stats['unresolved'] ?? 0, 'color' => 'gray-900', 'sublabel' => 'from last week'],
-            ['label' => 'Overdue', 'value' => $stats['overdue'] ?? 0, 'color' => 'red-600', 'sublabel' => 'needs attention'],
-            ['label' => 'Due Today', 'value' => $stats['due_today'] ?? 0, 'color' => 'amber-600', 'sublabel' => 'tickets pending'],
-            ['label' => 'Open', 'value' => $stats['open'] ?? 0, 'color' => 'blue-600', 'sublabel' => 'in progress'],
-            ['label' => 'On Hold', 'value' => $stats['on_hold'] ?? 0, 'color' => 'gray-600', 'sublabel' => 'waiting'],
-            ['label' => 'Unassigned', 'value' => $stats['unassigned'] ?? 0, 'color' => 'purple-600', 'sublabel' => 'need assignment'],
+            ['label' => 'Total',             'value' => $stats['total'],             'color' => 'gray-900'],
+            ['label' => 'Open',              'value' => $stats['open'],              'color' => 'blue-600'],
+            ['label' => 'In Process',        'value' => $stats['in_process'],        'color' => 'indigo-600'],
+            ['label' => 'Action Required',   'value' => $stats['author_action'],     'color' => 'amber-600'],
+            ['label' => 'Proposed Solution', 'value' => $stats['proposed_solution'], 'color' => 'teal-600'],
+            ['label' => 'Closed',            'value' => $stats['closed'],            'color' => 'green-600'],
+            ['label' => 'Pending Approval',  'value' => $stats['pending_approval'],  'color' => 'orange-500'],
         ];
     @endphp
 
     @foreach($statCards as $card)
     <div class="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-md transition-shadow">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ $card['label'] }}</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight">{{ $card['label'] }}</p>
         <p class="text-2xl font-bold text-{{ $card['color'] }} mt-1">{{ $card['value'] }}</p>
-        <p class="text-xs text-gray-400 mt-1">{{ $card['sublabel'] }}</p>
     </div>
     @endforeach
 </div>
 
-{{-- Chart Section --}}
-<div class="bg-white rounded-xl border border-gray-100 p-6 mb-6">
-    <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <div>
-            <h2 class="text-lg font-semibold text-gray-900">Today's Trends</h2>
-            <p class="text-sm text-gray-500">{{ now()->format('jS M Y, h:i A') }}</p>
-        </div>
-        <div class="flex items-center space-x-6 flex-wrap gap-4">
-            @php
-                $trendMetrics = [
-                    ['label' => 'Resolved', 'value' => $trendStats['resolved'] ?? 0, 'color' => 'gray-900'],
-                    ['label' => 'Received', 'value' => $trendStats['received'] ?? 0, 'color' => 'gray-900'],
-                    ['label' => 'Avg Response', 'value' => $trendStats['avg_response'] ?? '0m', 'color' => 'gray-900'],
-                    ['label' => 'Resolution SLA', 'value' => ($trendStats['sla_percentage'] ?? 0) . '%', 'color' => 'green-600'],
-                ];
-            @endphp
+{{-- Chart + Recent Tickets --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
-            @foreach($trendMetrics as $metric)
-            <div class="text-right">
-                <p class="text-xs text-gray-500">{{ $metric['label'] }}</p>
-                <p class="text-xl font-bold text-{{ $metric['color'] }}">{{ $metric['value'] }}</p>
+    {{-- Trend Chart --}}
+    <div class="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-base font-semibold text-gray-900">Ticket Submissions</h2>
+                <p class="text-xs text-gray-500">Last 30 days</p>
             </div>
-            @endforeach
+            <span class="text-xs text-gray-400">{{ now()->format('d M Y') }}</span>
+        </div>
+        <div class="h-52">
+            <canvas id="trendsChart"></canvas>
         </div>
     </div>
-    
-    <!-- Chart Canvas -->
-    <div class="h-64">
-        <canvas id="trendsChart"></canvas>
-    </div>
-    
-    <!-- Legend -->
-    <div class="flex items-center justify-center space-x-6 mt-4">
-        <div class="flex items-center space-x-2">
-            <div class="w-3 h-3 bg-red-500 rounded-full"></div>
-            <span class="text-sm text-gray-600">Today</span>
+
+    {{-- Recent Tickets --}}
+    <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-900">Recent Tickets</h3>
+            <a href="{{ route('tickets.index') }}" class="text-xs text-red-600 hover:text-red-700 font-medium">View all →</a>
         </div>
-        <div class="flex items-center space-x-2">
-            <div class="w-3 h-3 bg-gray-300 rounded-full"></div>
-            <span class="text-sm text-gray-600">Yesterday</span>
+
+        <div class="space-y-3">
+            @forelse($recentTickets as $ticket)
+            @php
+                $statusColor = match($ticket->jarvies_status) {
+                    'closed'            => 'bg-green-100 text-green-700',
+                    'author action'     => 'bg-amber-100 text-amber-700',
+                    'proposed solution' => 'bg-teal-100 text-teal-700',
+                    'in process'        => 'bg-blue-100 text-blue-700',
+                    default             => 'bg-gray-100 text-gray-600',
+                };
+            @endphp
+            <a href="{{ route('tickets.show', $ticket->ticket_id) }}"
+               class="block p-3 rounded-lg border border-gray-100 hover:border-red-200 hover:bg-red-50 transition-colors">
+                <div class="flex items-start justify-between gap-2">
+                    <p class="text-sm font-medium text-gray-800 truncate">{{ $ticket->description }}</p>
+                    <span class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 {{ $statusColor }}">
+                        {{ ucfirst($ticket->jarvies_status ?? '-') }}
+                    </span>
+                </div>
+                <div class="flex items-center justify-between mt-1.5">
+                    <span class="text-xs text-gray-400 font-mono">{{ $ticket->ticket_number ?? '#' . $ticket->ticket_id }}</span>
+                    <span class="text-xs text-gray-400">{{ $ticket->created_at->diffForHumans() }}</span>
+                </div>
+            </a>
+            @empty
+            <div class="text-center py-8">
+                <svg class="w-10 h-10 text-gray-200 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <p class="text-sm text-gray-400">No tickets yet</p>
+                <a href="{{ route('tickets.create') }}" class="text-xs text-red-600 hover:text-red-700 font-medium mt-1 inline-block">Submit your first ticket →</a>
+            </div>
+            @endforelse
         </div>
     </div>
+
 </div>
 
-{{-- Bottom Grid --}}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    {{-- Unresolved Tickets --}}
-    <div class="bg-white rounded-xl border border-gray-100 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="font-semibold text-gray-900">Unresolved Tickets</h3>
-                <p class="text-xs text-gray-500">Across helpdesk</p>
-            </div>
-            <a href="{{ route('tickets.index') }}" class="text-sm text-red-600 hover:text-red-700 font-medium">View details</a>
+{{-- Quick Actions --}}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="{{ route('tickets.create') }}"
+       class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md hover:border-red-200 transition-all group">
+        <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0 group-hover:bg-red-800 transition-colors">
+            <svg class="w-5 h-5 text-red-700 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
         </div>
-        
-        <div class="space-y-3">
-            <div class="flex items-center justify-between py-2 border-b border-gray-50">
-                <span class="text-sm text-gray-600">Group</span>
-                <span class="text-sm font-medium text-gray-500">Open</span>
-            </div>
-            @forelse($unresolvedTickets as $group)
-            <div class="flex items-center justify-between py-2">
-                <span class="text-sm text-gray-700">{{ $group['group'] }}</span>
-                <span class="text-sm font-semibold text-gray-900">{{ $group['count'] }}</span>
-            </div>
-            @empty
-            <p class="text-sm text-gray-500 text-center py-4">No unresolved tickets</p>
-            @endforelse
+        <div>
+            <p class="text-sm font-semibold text-gray-800">New Ticket</p>
+            <p class="text-xs text-gray-400">Submit a support request</p>
         </div>
-    </div>
+    </a>
 
-    {{-- Customer Satisfaction --}}
-    <div class="bg-white rounded-xl border border-gray-100 p-6">
-        <div class="mb-4">
-            <h3 class="font-semibold text-gray-900">Customer Satisfaction</h3>
-            <p class="text-xs text-gray-500">Across helpdesk this month</p>
+    <a href="{{ route('tickets.index') }}"
+       class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md hover:border-blue-200 transition-all group">
+        <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0 group-hover:bg-blue-600 transition-colors">
+            <svg class="w-5 h-5 text-blue-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+            </svg>
         </div>
-        
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <p class="text-xs text-gray-500 mb-1">Responses received</p>
-                <p class="text-3xl font-bold text-gray-900">{{ $satisfaction['total_responses'] ?? 0 }}</p>
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 mb-1">Positive</p>
-                <div class="flex items-center space-x-2">
-                    <p class="text-3xl font-bold text-green-600">{{ $satisfaction['positive'] ?? 0 }}%</p>
-                    <span class="text-2xl">😊</span>
-                </div>
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 mb-1">Neutral</p>
-                <div class="flex items-center space-x-2">
-                    <p class="text-2xl font-bold text-amber-500">{{ $satisfaction['neutral'] ?? 0 }}%</p>
-                    <span class="text-xl">😐</span>
-                </div>
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 mb-1">Negative</p>
-                <div class="flex items-center space-x-2">
-                    <p class="text-2xl font-bold text-red-500">{{ $satisfaction['negative'] ?? 0 }}%</p>
-                    <span class="text-xl">😞</span>
-                </div>
-            </div>
+        <div>
+            <p class="text-sm font-semibold text-gray-800">My Tickets</p>
+            <p class="text-xs text-gray-400">{{ $stats['open'] }} open · {{ $stats['closed'] }} closed</p>
         </div>
+    </a>
 
-        {{-- Progress Bar --}}
-        <div class="mt-4">
-            <div class="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                <div class="bg-green-500 h-full" style="width: {{ $satisfaction['positive'] ?? 0 }}%"></div>
-                <div class="bg-amber-500 h-full" style="width: {{ $satisfaction['neutral'] ?? 0 }}%"></div>
-                <div class="bg-red-500 h-full" style="width: {{ $satisfaction['negative'] ?? 0 }}%"></div>
-            </div>
+    <a href="{{ route('profile') }}"
+       class="flex items-center gap-4 bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md hover:border-gray-300 transition-all group">
+        <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-700 transition-colors">
+            <svg class="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
         </div>
-    </div>
-
-    {{-- To-Do List --}}
-    <div class="bg-white rounded-xl border border-gray-100 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900">To-do <span class="text-gray-400 font-normal">({{ count($todos) }})</span></h3>
+        <div>
+            <p class="text-sm font-semibold text-gray-800">My Profile</p>
+            <p class="text-xs text-gray-400">{{ session('user.company_name', 'View profile') }}</p>
         </div>
-        
-        <div class="space-y-3 max-h-96 overflow-y-auto">
-            @forelse($todos as $todo)
-            <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div class="flex items-start space-x-3">
-                    <input type="checkbox" class="mt-1 w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer">
-                    <div class="flex-1">
-                        <p class="text-sm font-medium text-gray-900">{{ $todo['title'] }}</p>
-                        <p class="text-xs text-gray-500 mt-1">{{ $todo['description'] }}</p>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $todo['priority'] === 'high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' }} mt-2">
-                            {{ $todo['due'] }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            @empty
-            <p class="text-sm text-gray-500 text-center py-8">No pending tasks</p>
-            @endforelse
-        </div>
-    </div>
-
+    </a>
 </div>
 
 @endsection
@@ -189,49 +147,28 @@
 <script>
 const ctx = document.getElementById('trendsChart').getContext('2d');
 
-const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-gradient.addColorStop(0, 'rgba(220, 38, 38, 0.2)');
+const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+gradient.addColorStop(0, 'rgba(220, 38, 38, 0.15)');
 gradient.addColorStop(1, 'rgba(220, 38, 38, 0)');
-
-const gradientGray = ctx.createLinearGradient(0, 0, 0, 250);
-gradientGray.addColorStop(0, 'rgba(156, 163, 175, 0.1)');
-gradientGray.addColorStop(1, 'rgba(156, 163, 175, 0)');
 
 new Chart(ctx, {
     type: 'line',
     data: {
-        labels: Array.from({length: 31}, (_, i) => String(i + 1)),
-        datasets: [
-            {
-                label: 'Today',
-                data: [10, 15, 12, 8, 18, 15, 22, 28, 25, 32, 31, 32, 38, 22, 25, 38, 30, 22, 21, 28, 30, 32, 35, 38, 25, 28, 22, 45, 18, 30, 32],
-                borderColor: '#dc2626',
-                backgroundColor: gradient,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                pointHoverBackgroundColor: '#dc2626',
-                pointHoverBorderColor: '#fff',
-                pointHoverBorderWidth: 2,
-                borderWidth: 2
-            },
-            {
-                label: 'Yesterday',
-                data: [5, 8, 6, 4, 10, 8, 15, 20, 25, 30, 35, 28, 22, 45, 48, 30, 42, 25, 28, 20, 22, 25, 28, 30, 12, 15, 18, 20, 22, 25, 28],
-                borderColor: '#9ca3af',
-                backgroundColor: gradientGray,
-                tension: 0.4,
-                fill: true,
-                pointRadius: 0,
-                pointHoverRadius: 6,
-                pointHoverBackgroundColor: '#9ca3af',
-                pointHoverBorderColor: '#fff',
-                pointHoverBorderWidth: 2,
-                borderWidth: 2,
-                borderDash: [5, 5]
-            }
-        ]
+        labels: @json($trendLabels),
+        datasets: [{
+            label: 'Tickets submitted',
+            data: @json($trendData),
+            borderColor: '#dc2626',
+            backgroundColor: gradient,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 2,
+            pointHoverRadius: 5,
+            pointBackgroundColor: '#dc2626',
+            pointHoverBorderColor: '#fff',
+            pointHoverBorderWidth: 2,
+            borderWidth: 2,
+        }]
     },
     options: {
         responsive: true,
@@ -240,25 +177,25 @@ new Chart(ctx, {
             legend: { display: false },
             tooltip: {
                 backgroundColor: '#1f2937',
-                padding: 12,
-                displayColors: true
+                padding: 10,
+                callbacks: {
+                    label: ctx => ' ' + ctx.parsed.y + ' ticket' + (ctx.parsed.y !== 1 ? 's' : '')
+                }
             }
         },
         scales: {
             x: {
                 grid: { display: false },
-                ticks: { color: '#9ca3af', font: { size: 11 } }
+                ticks: { color: '#9ca3af', font: { size: 10 }, maxTicksLimit: 10 }
             },
             y: {
                 grid: { color: '#f3f4f6' },
-                ticks: { color: '#9ca3af', font: { size: 11 } },
-                beginAtZero: true
+                ticks: { color: '#9ca3af', font: { size: 10 }, stepSize: 1, precision: 0 },
+                beginAtZero: true,
+                min: 0,
             }
         },
-        interaction: {
-            intersect: false,
-            mode: 'index'
-        }
+        interaction: { intersect: false, mode: 'index' }
     }
 });
 </script>

@@ -24,7 +24,7 @@
             <p class="text-sm text-gray-400 mt-0.5">Our support team will review and respond to your request.</p>
         </div>
 
-        {{-- Email Notification Row (opsional) --}}
+        {{-- Email Notification Row (optional) --}}
         <div id="emailNotifRow" class="px-6 py-3 bg-gray-50 border-b border-gray-100">
             <div id="emailNotifLoading" class="flex items-center gap-2 text-xs text-gray-400 animate-pulse">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,16 +78,49 @@
                     required>
             </div>
 
+            {{-- Name & No HP --}}
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="name" class="block text-sm font-semibold text-gray-700 mb-1.5">Name</label>
+                    <input type="text" id="name" name="name"
+                        placeholder="Contact person name..."
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                </div>
+                <div>
+                    <label for="no_hp" class="block text-sm font-semibold text-gray-700 mb-1.5">No HP</label>
+                    <input type="text" id="no_hp" name="no_hp"
+                        placeholder="Phone number..."
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                </div>
+            </div>
+
+            {{-- Module & Client --}}
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="module" class="block text-sm font-semibold text-gray-700 mb-1.5">Module</label>
+                    <input type="text" id="module" name="module"
+                        placeholder="Related module..."
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                </div>
+                <div>
+                    <label for="client" class="block text-sm font-semibold text-gray-700 mb-1.5">Client</label>
+                    <input type="text" id="client" name="client"
+                        placeholder="Client name..."
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                </div>
+            </div>
+
             {{-- Priority --}}
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
-                <div class="flex items-center gap-2">
-                    @foreach(['Low', 'Medium', 'High'] as $p)
+                <div class="flex items-center gap-2 flex-wrap">
+                    @foreach(['Very High', 'High', 'Medium', 'Low'] as $p)
                     @php
                         $colors = [
-                            'Low'    => 'peer-checked:bg-green-100 peer-checked:border-green-400 peer-checked:text-green-700',
-                            'Medium' => 'peer-checked:bg-blue-100 peer-checked:border-blue-400 peer-checked:text-blue-700',
-                            'High'   => 'peer-checked:bg-red-100 peer-checked:border-red-400 peer-checked:text-red-700',
+                            'Very High' => 'peer-checked:bg-red-100 peer-checked:border-red-500 peer-checked:text-red-700',
+                            'High'      => 'peer-checked:bg-orange-100 peer-checked:border-orange-400 peer-checked:text-orange-700',
+                            'Medium'    => 'peer-checked:bg-blue-100 peer-checked:border-blue-400 peer-checked:text-blue-700',
+                            'Low'       => 'peer-checked:bg-green-100 peer-checked:border-green-400 peer-checked:text-green-700',
                         ];
                     @endphp
                     <label class="relative cursor-pointer">
@@ -101,6 +134,25 @@
                     </label>
                     @endforeach
                 </div>
+            </div>
+
+            {{-- CC (always shown, applies when OAuth email is active) --}}
+            <div id="ccFieldWrapper">
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+                    CC
+                    <span class="text-xs font-normal text-gray-400 ml-1">(optional — copy recipients for ticket emails)</span>
+                </label>
+                {{-- Tag input: press Enter/comma/space to add an email --}}
+                <div id="ccTagsContainer"
+                    class="flex flex-wrap gap-1.5 px-3 py-2 border border-gray-300 rounded-xl text-sm cursor-text min-h-[42px] items-center focus-within:ring-2 focus-within:ring-red-800 focus-within:border-transparent transition-all">
+                    <input type="text" id="ccInput"
+                        placeholder="Add email then press Enter…"
+                        autocomplete="off"
+                        class="outline-none flex-1 min-w-[200px] text-sm text-gray-800 placeholder-gray-400 bg-transparent py-0.5">
+                </div>
+                {{-- Hidden inputs created by JS --}}
+                <div id="ccHiddenInputs"></div>
+                <p id="ccError" class="text-xs text-red-600 mt-1 hidden"></p>
             </div>
 
             {{-- Body --}}
@@ -341,7 +393,7 @@ async function loadEmailStatus() {
             row.classList.add('flex');
         }
     } catch (err) {
-        // Gagal cek — sembunyikan loading, biarkan form tetap bisa diisi
+        // Check failed — hide loading, form remains usable
         document.getElementById('emailNotifLoading').classList.add('hidden');
     }
 }
@@ -386,6 +438,90 @@ async function discardTicket() {
     if (ok) window.location.href = '{{ route("tickets.index") }}';
 }
 
+// ===== CC Tag Input =====
+const ccTags  = [];
+const ccInput = document.getElementById('ccInput');
+const ccContainer = document.getElementById('ccTagsContainer');
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function addCcTag(email) {
+    email = email.trim().toLowerCase();
+    if (!email) return;
+    if (!isValidEmail(email)) {
+        const err = document.getElementById('ccError');
+        err.textContent = `"${email}" is not a valid email address.`;
+        err.classList.remove('hidden');
+        return;
+    }
+    if (ccTags.includes(email)) {
+        ccInput.value = '';
+        return;
+    }
+    if (ccTags.length >= 10) {
+        const err = document.getElementById('ccError');
+        err.textContent = 'Maximum 10 CC email addresses.';
+        err.classList.remove('hidden');
+        return;
+    }
+    document.getElementById('ccError').classList.add('hidden');
+    ccTags.push(email);
+
+    // Create tag chip
+    const chip = document.createElement('span');
+    chip.className = 'inline-flex items-center gap-1 bg-red-50 border border-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full';
+    chip.dataset.email = email;
+    chip.innerHTML = `${escHtmlCreate(email)}<button type="button" class="ml-0.5 hover:text-red-600 transition-colors" onclick="removeCcTag('${escHtmlCreate(email)}')">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>`;
+    ccContainer.insertBefore(chip, ccInput);
+
+    // Hidden input for form submit
+    const hidden = document.createElement('input');
+    hidden.type  = 'hidden';
+    hidden.name  = 'cc_tag_' + ccTags.length;
+    hidden.value = email;
+    hidden.dataset.ccTag = email;
+    document.getElementById('ccHiddenInputs').appendChild(hidden);
+
+    ccInput.value = '';
+}
+
+function removeCcTag(email) {
+    const idx = ccTags.indexOf(email);
+    if (idx > -1) ccTags.splice(idx, 1);
+
+    // Remove chip
+    ccContainer.querySelectorAll('[data-email]').forEach(chip => {
+        if (chip.dataset.email === email) chip.remove();
+    });
+    // Remove hidden input
+    document.getElementById('ccHiddenInputs').querySelectorAll('[data-cc-tag]').forEach(inp => {
+        if (inp.dataset.ccTag === email) inp.remove();
+    });
+}
+
+function escHtmlCreate(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+ccInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+        e.preventDefault();
+        addCcTag(this.value);
+    } else if (e.key === 'Backspace' && this.value === '' && ccTags.length > 0) {
+        removeCcTag(ccTags[ccTags.length - 1]);
+    }
+});
+
+ccInput.addEventListener('blur', function () {
+    if (this.value.trim()) addCcTag(this.value);
+});
+
+ccContainer.addEventListener('click', () => ccInput.focus());
+
 // ===== Form Submit =====
 document.getElementById('ticketForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -393,6 +529,13 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
     const subject  = document.getElementById('subject').value.trim();
     const body     = document.getElementById('body').value.trim();
     const priority = document.querySelector('input[name="ticket_priority"]:checked')?.value || 'Medium';
+    const name     = document.getElementById('name').value.trim() || undefined;
+    const no_hp    = document.getElementById('no_hp').value.trim() || undefined;
+    const module   = document.getElementById('module').value.trim() || undefined;
+    const client   = document.getElementById('client').value.trim() || undefined;
+
+    // Flush any email being typed but not yet confirmed
+    if (ccInput.value.trim()) addCcTag(ccInput.value);
 
     if (!subject) { showAlert('Subject cannot be empty.', 'warning'); return; }
     if (!body)    { showAlert('Details cannot be empty.', 'warning'); return; }
@@ -411,6 +554,11 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
                 description:     subject,
                 body:            body,
                 ticket_priority: priority,
+                cc_emails:       ccTags.length > 0 ? ccTags : undefined,
+                name,
+                no_hp,
+                module,
+                client,
             }),
         });
 
@@ -449,7 +597,7 @@ function setLoading(loading) {
     document.getElementById('sendText').textContent = loading ? 'Submitting...' : 'Submit Ticket';
 }
 
-// ===== Flash session dari OAuth callback =====
+// ===== Flash session from OAuth callback =====
 @if(session('oauth_success'))
 document.addEventListener('DOMContentLoaded', () => showAlert(@json(session('oauth_success')), 'success', 'Email Connected'));
 @endif

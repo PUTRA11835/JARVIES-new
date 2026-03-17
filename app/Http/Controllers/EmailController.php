@@ -326,21 +326,12 @@ class EmailController extends Controller
                         }
 
                     } else {
-                        // Cek email [PENDING] dari JARVIES web form — jangan buat tiket duplikat
-                        // Simpan conversationId di staging agar reply employee bisa diteruskan ke tiket yang benar
-                        if (stripos($subject, '[PENDING]') === 0) {
-                            $stagingDesc  = trim(preg_replace('/^\[PENDING\]\s*/i', '', $subject));
-                            $stagingPending = StagingTicket::where('submitted_by_email', $fromEmail)
-                                ->where('description', $stagingDesc)
-                                ->first();
-                            if ($stagingPending) {
-                                if ($conversationId && !$stagingPending->email_thread_id) {
-                                    $stagingPending->update(['email_thread_id' => $conversationId]);
-                                }
-                                $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
-                                $processed++;
-                                continue;
-                            }
+                        // Cek apakah email ini sudah terhubung ke staging ticket via thread ID
+                        // (dikirim dari JARVIES web form — jangan buat tiket duplikat)
+                        if ($conversationId && StagingTicket::where('email_thread_id', $conversationId)->exists()) {
+                            $this->graphPatch("/users/{$sender}/messages/{$graphMsgId}", ['isRead' => true]);
+                            $processed++;
+                            continue;
                         }
 
                         // Semua email baru masuk ke staging_tickets dulu (perlu validasi EcoSystem)
