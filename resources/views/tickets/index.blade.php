@@ -530,6 +530,7 @@ function createTicketCard(ticket) {
     };
 
     const statusColors = {
+        'initial': 'bg-gray-100 text-gray-500',
         'in process': 'bg-blue-100 text-blue-700',
         'author action': 'bg-amber-100 text-amber-700',
         'proposed solution': 'bg-purple-100 text-purple-700',
@@ -557,23 +558,28 @@ function createTicketCard(ticket) {
         ? `<div class="w-2 h-2 rounded-full ${priorityColors[ticket.ticket_priority]}"></div>`
         : `<div class="w-2 h-2 rounded-full bg-gray-300"></div>`;
 
+    const isStaging  = ticket.is_staging === true;
+    const cardHref   = isStaging ? `/tickets/staging/${ticket.staging_id}` : `/tickets/${ticket.ticket_id}`;
+    const hoverClass = isStaging ? 'hover:border-gray-300 hover:shadow-md' : 'hover:border-gray-300 hover:shadow-md';
+    const statusLabel = ticket.jarvies_status === 'initial' ? 'Initial' : (ticket.jarvies_status || 'Open');
+
     return `
-        <a href="/tickets/${ticket.ticket_id}" class="group block bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-md transition-all">
+        <a href="${cardHref}" class="group block bg-white border border-gray-200 rounded-xl ${hoverClass} transition-all">
             <div class="flex items-start gap-4 p-4">
-                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=991b1b&color=fff&size=44&rounded=true"
+                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=${isStaging ? 'aaaaaa' : '991b1b'}&color=fff&size=44&rounded=true"
                      alt="${customerName}" class="w-11 h-11 rounded-full flex-shrink-0">
 
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
                         <span class="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${statusColors[ticket.jarvies_status] || 'bg-gray-100 text-gray-700'}">
-                            ${ticket.jarvies_status || 'Open'}
+                            ${statusLabel}
                         </span>
-                        ${ticketTypeBadge}
+                        ${isStaging ? '<span class="text-xs text-gray-400 italic">Awaiting validation</span>' : ticketTypeBadge}
                     </div>
 
-                    <h3 class="text-sm font-semibold text-gray-900 mb-1 group-hover:text-red-800 transition-colors">
+                    <h3 class="text-sm font-semibold text-gray-900 mb-1 ${isStaging ? '' : 'group-hover:text-red-800'} transition-colors">
                         ${ticket.description || 'No description'}
-                        <span class="text-gray-400 font-normal">${ticket.ticket_number ? ticket.ticket_number : 'Pending'}</span>
+                        <span class="text-gray-400 font-normal">${ticket.ticket_number ? ticket.ticket_number : ''}</span>
                     </h3>
 
                     <div class="flex items-center gap-3 text-xs text-gray-500">

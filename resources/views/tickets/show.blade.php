@@ -787,6 +787,7 @@ async function sendReply() {
             await loadMessages();
             refreshIndicator();
             showNotification('Message sent.', 'success');
+
         } else {
             showNotification(data.message || 'Failed to send message.', 'error');
         }
@@ -936,6 +937,7 @@ function showNotification(msg, type = 'info') {
     document.body.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 350); }, 3000);
 }
+
 
 </script>
 @endsection

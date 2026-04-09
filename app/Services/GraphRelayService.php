@@ -78,7 +78,8 @@ class GraphRelayService
         string $conversationId,
         string $toEmail,
         string $subject,
-        string $body
+        string $body,
+        array $ccEmails = []
     ): ?string {
         // Cari pesan terakhir dalam conversationId di semua folder
         $searchRes = Http::withToken($token)->get(
@@ -119,15 +120,24 @@ class GraphRelayService
 
         // WAJIB: PATCH toRecipients ke customer
         // Bug Graph: createReply menyetel toRecipients = raditya (pengirim asli), bukan customer
+        $patchPayload = [
+            'subject'      => $subject,
+            'body'         => ['contentType' => 'HTML', 'content' => $body],
+            'toRecipients' => [
+                ['emailAddress' => ['address' => $toEmail]],
+            ],
+        ];
+
+        if (!empty($ccEmails)) {
+            $patchPayload['ccRecipients'] = array_map(
+                fn($cc) => ['emailAddress' => ['address' => $cc]],
+                $ccEmails
+            );
+        }
+
         Http::withToken($token)->patch(
             "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}",
-            [
-                'subject'      => $subject,
-                'body'         => ['contentType' => 'HTML', 'content' => $body],
-                'toRecipients' => [
-                    ['emailAddress' => ['address' => $toEmail]],
-                ],
-            ]
+            $patchPayload
         );
 
         return $draftId;
@@ -143,17 +153,27 @@ class GraphRelayService
         string $token,
         string $toEmail,
         string $subject,
-        string $body
+        string $body,
+        array $ccEmails = []
     ): ?string {
+        $payload = [
+            'subject'      => $subject,
+            'body'         => ['contentType' => 'HTML', 'content' => $body],
+            'toRecipients' => [
+                ['emailAddress' => ['address' => $toEmail]],
+            ],
+        ];
+
+        if (!empty($ccEmails)) {
+            $payload['ccRecipients'] = array_map(
+                fn($cc) => ['emailAddress' => ['address' => $cc]],
+                $ccEmails
+            );
+        }
+
         $draftRes = Http::withToken($token)->post(
             "{$this->graphBase}/users/{$this->sender}/messages",
-            [
-                'subject'      => $subject,
-                'body'         => ['contentType' => 'HTML', 'content' => $body],
-                'toRecipients' => [
-                    ['emailAddress' => ['address' => $toEmail]],
-                ],
-            ]
+            $payload
         );
 
         if (!$draftRes->successful()) {
@@ -165,6 +185,138 @@ class GraphRelayService
         }
 
         return $draftRes->json('id');
+    }
+
+    // ─── Standalone email (untuk staging / notifikasi tanpa thread) ──────────
+
+    /**
+     * Kirim email baru (bukan reply ke thread yang ada) dari helpdesk ke customer.
+     * Digunakan saat staging ticket pertama kali dibuat — belum ada conversationId.
+     *
+     * @param string   $toEmail          Email tujuan (customer)
+     * @param string   $subject          Subject email
+     * @param string   $htmlBody         Body HTML (cid: references untuk inline image)
+     * @param array    $ccEmails         CC recipients
+     * @param array    $inlineImages     [ ['name'=>, 'content'=>(binary), 'mime'=>, 'cid'=>] ]
+     * @param array    $fileAttachments  [ ['name'=>, 'content'=>(binary), 'mime'=>] ]
+     * @param int|null $logRefId         Referensi ID untuk logging (staging ID dsb.)
+     *
+     * @return array|null  null jika gagal. Array jika berhasil:
+     *   [ 'internet_message_id'=>, 'conversation_id'=>, 'attachments'=>[] ]
+     */
+    public function sendStandaloneEmail(
+        string $toEmail,
+        string $subject,
+        string $htmlBody,
+        array $ccEmails = [],
+        array $inlineImages = [],
+        array $fileAttachments = [],
+        ?int $logRefId = null
+    ): ?array {
+        if (empty($this->sender)) {
+            Log::error('GraphRelayService@sendStandaloneEmail: MS_SENDER_EMAIL not configured');
+            return null;
+        }
+
+        if (empty($toEmail)) {
+            Log::warning('GraphRelayService@sendStandaloneEmail: toEmail is empty', ['ref_id' => $logRefId]);
+            return null;
+        }
+
+        $token = $this->getAccessToken();
+        if (!$token) {
+            return null;
+        }
+
+        $draftId = $this->createNewDraft($token, $toEmail, $subject, $htmlBody, $ccEmails);
+        if (!$draftId) {
+            return null;
+        }
+
+        // ─── Upload inline images ──────────────────────────────────────────────
+        $uploadedInline = [];
+        foreach ($inlineImages as $img) {
+            $res = Http::withToken($token)->post(
+                "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}/attachments",
+                [
+                    '@odata.type'  => '#microsoft.graph.fileAttachment',
+                    'name'         => $img['name'],
+                    'contentType'  => $img['mime'],
+                    'contentBytes' => base64_encode($img['content']),
+                    'isInline'     => true,
+                    'contentId'    => $img['cid'],
+                ]
+            );
+            $uploadedInline[] = [
+                'name'      => $img['name'],
+                'mime'      => $img['mime'],
+                'size'      => strlen($img['content']),
+                'cid'       => $img['cid'],
+                'is_inline' => true,
+                'uploaded'  => $res->successful(),
+            ];
+        }
+
+        // ─── Upload file attachments ───────────────────────────────────────────
+        $uploadedFiles = [];
+        foreach ($fileAttachments as $file) {
+            $res = Http::withToken($token)->post(
+                "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}/attachments",
+                [
+                    '@odata.type'  => '#microsoft.graph.fileAttachment',
+                    'name'         => $file['name'],
+                    'contentType'  => $file['mime'],
+                    'contentBytes' => base64_encode($file['content']),
+                    'isInline'     => false,
+                ]
+            );
+            $uploadedFiles[] = [
+                'name'      => $file['name'],
+                'mime'      => $file['mime'],
+                'size'      => strlen($file['content']),
+                'cid'       => null,
+                'is_inline' => false,
+                'uploaded'  => $res->successful(),
+            ];
+        }
+
+        // ─── Fetch internetMessageId + conversationId SEBELUM send ────────────
+        $infoRes = Http::withToken($token)->get(
+            "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}",
+            ['$select' => 'internetMessageId,conversationId']
+        );
+        $internetMsgId  = $infoRes->json('internetMessageId');
+        $conversationId = $infoRes->json('conversationId');
+
+        // ─── Send ──────────────────────────────────────────────────────────────
+        $sendRes = Http::withToken($token)->post(
+            "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}/send",
+            []
+        );
+
+        if (!$sendRes->successful() && $sendRes->status() !== 202) {
+            Log::error('GraphRelayService@sendStandaloneEmail: send failed', [
+                'ref_id' => $logRefId,
+                'status' => $sendRes->status(),
+                'body'   => $sendRes->body(),
+            ]);
+            return null;
+        }
+
+        Log::info('GraphRelayService@sendStandaloneEmail: sent', [
+            'ref_id'          => $logRefId,
+            'to'              => $toEmail,
+            'inline'          => count($uploadedInline),
+            'files'           => count($uploadedFiles),
+            'internet_msg_id' => $internetMsgId,
+            'conversation_id' => $conversationId,
+        ]);
+
+        return [
+            'internet_message_id' => $internetMsgId,
+            'conversation_id'     => $conversationId,
+            'attachments'         => array_merge($uploadedInline, $uploadedFiles),
+        ];
     }
 
     // ─── Main method ──────────────────────────────────────────────────────────
@@ -205,7 +357,8 @@ class GraphRelayService
         string $htmlBody,
         ?string $inReplyTo,
         array $inlineImages = [],
-        array $fileAttachments = []
+        array $fileAttachments = [],
+        array $ccEmails = []
     ): ?array {
         if (empty($this->sender)) {
             Log::error('GraphRelayService: MS_SENDER_EMAIL not configured');
@@ -240,13 +393,14 @@ class GraphRelayService
                 $ticket->email_thread_id,
                 $toEmail,
                 $subject,
-                $wrappedBody
+                $wrappedBody,
+                $ccEmails
             );
         }
 
         if (!$draftId) {
             // Fallback: buat draft baru (belum ada thread atau createReply gagal)
-            $draftId = $this->createNewDraft($token, $toEmail, $subject, $wrappedBody);
+            $draftId = $this->createNewDraft($token, $toEmail, $subject, $wrappedBody, $ccEmails);
         }
 
         if (!$draftId) {

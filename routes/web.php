@@ -5,7 +5,6 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerApiController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\OAuthEmailController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ProfileController;
@@ -19,6 +18,10 @@ use App\Http\Controllers\ProfileController;
 | All routes communicate with Ecosystem API backend
 |
 */
+
+// ==================== PUBLIC LEGAL PAGES ====================
+Route::get('/terms', fn() => view('legal.terms'))->name('legal.terms');
+Route::get('/privacy', fn() => view('legal.privacy'))->name('legal.privacy');
 
 // ==================== GUEST ROUTES ====================
 Route::middleware('jarvies.guest')->group(function () {
@@ -65,6 +68,7 @@ Route::middleware('jarvies.auth')->group(function () {
         // AJAX API Endpoints
         Route::get('/ajax/fetch', [TicketController::class, 'getTickets'])->name('ajax.fetch');
         Route::get('/staging', [TicketController::class, 'getStagingTickets'])->name('staging');
+        Route::get('/staging/{id}', [TicketController::class, 'showStaging'])->name('staging.show')->whereNumber('id');
         Route::get('/pending', [TicketController::class, 'pendingPage'])->name('pending');
         Route::get('/{id}/messages', [TicketController::class, 'getMessages'])->name('messages')->whereNumber('id');
         Route::post('/{id}/comment', [TicketController::class, 'addComment'])->name('comment')->whereNumber('id');
@@ -80,9 +84,6 @@ Route::middleware('jarvies.auth')->group(function () {
     // ==================== PROFILE ====================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile');
     Route::post('/profile/send-reset-link', [ProfileController::class, 'sendResetLink'])->name('profile.send-reset-link');
-
-    // ==================== ONBOARDING ====================
-    Route::get('/onboarding/connect-email', [OAuthEmailController::class, 'onboarding'])->name('onboarding.connect-email');
 
     // ==================== ATTACHMENTS (Graph proxy) ====================
     Route::get('/attachments/{id}', [AttachmentController::class, 'show'])->name('attachments.show')->whereNumber('id');
@@ -103,19 +104,7 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/attachments/{attachmentId}',  [CustomerApiController::class, 'attachment'])->whereNumber('attachmentId');
     });
 
-    // ==================== OAUTH EMAIL LINKING ====================
-    Route::prefix('oauth/email')->name('oauth.email.')->group(function () {
-        Route::get('/status', [OAuthEmailController::class, 'status'])->name('status');
-        Route::get('/redirect/{provider}', [OAuthEmailController::class, 'redirect'])->name('redirect');
-        Route::delete('/disconnect', [OAuthEmailController::class, 'disconnect'])->name('disconnect');
-    });
 });
-
-// ==================== OAUTH CALLBACK (di luar jarvies.auth) ====================
-// Callback dari Google/Azure tidak boleh di-block middleware session
-// Controller sudah punya pengecekan session sendiri
-Route::get('/oauth/email/callback/{provider}', [OAuthEmailController::class, 'callback'])
-    ->name('oauth.email.callback');
 
 // ==================== FALLBACK ====================
 Route::fallback(function () {

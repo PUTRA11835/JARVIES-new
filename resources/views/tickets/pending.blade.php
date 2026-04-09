@@ -42,7 +42,16 @@
         ];
         $cfg = $statusConfig[$s->status] ?? $statusConfig['unvalidated'];
     @endphp
-    <div class="flex items-start gap-4 px-5 py-4 rounded-xl border {{ $cfg['bg'] }}">
+    @php
+        $href = match($s->status) {
+            'approved' => $s->ticket_id ? url('/tickets/' . $s->ticket_id) : null,
+            'rejected' => null,
+            default    => url('/tickets/staging/' . $s->id),
+        };
+    @endphp
+    <a @if($href) href="{{ $href }}" @else class="cursor-default" @endif
+       class="flex items-start gap-4 px-5 py-4 rounded-xl border {{ $cfg['bg'] }} {{ $href ? 'hover:shadow-md transition-shadow' : '' }} block">
+
         {{-- Icon --}}
         <div class="mt-0.5 shrink-0">
             @if($s->status === 'approved')
@@ -65,10 +74,10 @@
             <div class="flex items-center gap-2 flex-wrap mb-1">
                 <span class="font-semibold text-gray-900 text-sm">{{ $s->description }}</span>
                 <span class="text-xs px-2 py-0.5 rounded-full font-semibold {{ $cfg['badge'] }}">{{ $cfg['label'] }}</span>
-                @if($s->status === 'approved' && $s->ticket_id)
-                    <a href="{{ url('/tickets/' . $s->ticket_id) }}" class="text-xs font-semibold text-red-700 hover:underline">
-                        View Ticket #{{ $s->ticket?->ticket_number ?? $s->ticket_id }} →
-                    </a>
+                @if($s->status === 'unvalidated')
+                    <span class="text-xs text-gray-400 italic">Click to view detail →</span>
+                @elseif($s->status === 'approved' && $s->ticket_id)
+                    <span class="text-xs font-semibold text-red-700">View Ticket #{{ $s->ticket?->ticket_number ?? $s->ticket_id }} →</span>
                 @endif
             </div>
             @if($s->status === 'rejected' && $s->rejection_reason)
@@ -83,7 +92,16 @@
                 <span>Priority: <span class="font-semibold {{ $priorityColors[$s->ticket_priority] ?? 'text-gray-500' }}">{{ $s->ticket_priority ?? '—' }}</span></span>
             </div>
         </div>
-    </div>
+
+        {{-- Arrow indicator for clickable items --}}
+        @if($href)
+        <div class="shrink-0 self-center text-gray-300">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+        </div>
+        @endif
+    </a>
     @endforeach
 </div>
 @endif

@@ -40,6 +40,8 @@ class StagingTicketService
             'channel'            => 'web',
             'submitted_by_email' => $customerEmail,
             'sender_name'        => $senderName,
+            'email_thread_id'    => $data['email_thread_id'] ?? null,
+            'email_message_id'   => $data['email_message_id'] ?? null,
         ]);
 
         Log::info('StagingTicketService: new staging ticket created', [

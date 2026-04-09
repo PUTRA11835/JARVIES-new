@@ -86,7 +86,7 @@ class PasswordSetupController extends Controller
             'auth_user_id' => $authUser->id,
         ]);
 
-        // Jika customer → auto-login dan arahkan ke halaman onboarding connect email
+        // Jika customer → auto-login dan arahkan langsung ke dashboard
         if ($authUser->customer_id) {
             $customer = Customer::with('basicData')
                 ->where('customer_id', $authUser->customer_id)
@@ -136,7 +136,7 @@ class PasswordSetupController extends Controller
                     'customer_id' => $customer->customer_id,
                 ]);
 
-                return redirect()->route('onboarding.connect-email');
+                return redirect()->route('dashboard');
             }
         }
 

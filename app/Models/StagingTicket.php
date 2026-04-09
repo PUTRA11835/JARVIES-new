@@ -22,6 +22,8 @@ class StagingTicket extends Model
         'rejection_reason',
         'channel',
         'email_thread_id',
+        'email_message_id',
+        'customer_thread_id',
         'submitted_by_email',
         'sender_name',
         'validated_by',

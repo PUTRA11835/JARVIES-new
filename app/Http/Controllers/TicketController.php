@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CustomerEmailToken;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
 use App\Models\TicketMessage;
-use App\Services\CustomerEmailService;
 use App\Services\GraphRelayService;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
@@ -80,6 +78,24 @@ class TicketController extends Controller
         }
 
         return view('tickets.pending', compact('stagings'));
+    }
+
+    /**
+     * Display staging ticket detail page — customer only.
+     * URL: GET /tickets/staging/{id}
+     */
+    public function showStaging($id)
+    {
+        $user = session('user');
+        if (!$user || $user['role']['id'] != 3) {
+            return redirect()->route('tickets.index');
+        }
+
+        $staging = StagingTicket::where('id', $id)
+            ->where('customer_id', $user['id'])
+            ->firstOrFail();
+
+        return view('tickets.staging-show', compact('staging'));
     }
 
     /**
@@ -187,12 +203,48 @@ class TicketController extends Controller
             // Customer: hanya bisa lihat tiket mereka sendiri
             } elseif ($sessionUser['role']['id'] == 3) {
                 Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
-                
+
                 $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $sessionUser['id'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
-                    
+
+                // Sertakan staging tickets (belum divalidasi) sebagai "Initial"
+                $stagingTickets = \App\Models\StagingTicket::where('customer_id', $sessionUser['id'])
+                    ->where('status', 'unvalidated')
+                    ->orderByDesc('created_at')
+                    ->get();
+
+                $stagingData = $stagingTickets->map(fn($s) => [
+                    'ticket_id'                  => null,
+                    'staging_id'                 => $s->id,
+                    'is_staging'                 => true,
+                    'ticket_number'              => null,
+                    'customer_id'                => $s->customer_id,
+                    'employee_id'                => null,
+                    'description'                => $s->description,
+                    'ticket_priority'            => $s->ticket_priority,
+                    'ticket_type'                => null,
+                    'jarvies_status'             => 'initial',
+                    'status'                     => 'pending',
+                    'folder'                     => null,
+                    'file_log'                   => null,
+                    'start_date'                 => null,
+                    'end_date'                   => null,
+                    'man_days'                   => null,
+                    'wait_close'                 => null,
+                    'customer'                   => null,
+                    'employee'                   => null,
+                    'members'                    => [],
+                    'member_ids'                 => [],
+                    'pending_confirmations_count'=> 0,
+                    'confirmation'               => null,
+                    'last_message_at'            => null,
+                    'channel'                    => $s->channel ?? 'web',
+                    'created_at'                 => $s->created_at,
+                    'updated_at'                 => $s->updated_at,
+                ]);
+
             } else {
                 return response()->json([
                     'success' => false,
@@ -260,6 +312,11 @@ class TicketController extends Controller
                 ];
             });
 
+            // Gabungkan staging tickets untuk customer (role 3)
+            if (isset($stagingData) && $stagingData->isNotEmpty()) {
+                $ticketsData = $stagingData->concat($ticketsData);
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $ticketsData,
@@ -284,152 +341,223 @@ class TicketController extends Controller
         $user = session('user');
         $roleId = $user['role']['id'];
 
-        // ── Customer: masuk ke staging, bukan langsung ke tickets ──────────
+        // ── Customer: kirim email → POST ke EcoSystem API /jarvies/staging-tickets ─
+        // Alur:
+        //   1. Kirim email via GraphRelayService (Raditya → customer)
+        //   2. Ambil internet_message_id dari email yang baru dikirim
+        //   3. POST ke EcoSystem multipart/form-data dengan semua field + files
+        //   EcoSystem linkStagingToEmail() fetch body/attachment dari M365 Sent Items
         if ($roleId == 3) {
             $validated = $request->validate([
-                'description'     => 'required|string',
+                'description'     => 'required|string|max:5000',
                 'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
                 'body'            => 'nullable|string',
+                'body_html'       => 'nullable|string',
                 'cc_emails'       => 'nullable|array|max:10',
                 'cc_emails.*'     => 'email',
                 'name'            => 'nullable|string|max:255',
                 'no_hp'           => 'nullable|string|max:255',
                 'module'          => 'nullable|string|max:255',
                 'client'          => 'nullable|string|max:255',
+                'attachments'     => 'nullable|array',
+                'attachments.*'   => 'file|max:20480',
             ]);
 
-            // Normalisasi cc_emails: array email yang sudah divalidasi
-            $ccEmails   = array_values(array_filter($validated['cc_emails'] ?? []));
-            $ccEmailsJson = !empty($ccEmails) ? json_encode($ccEmails) : null;
+            $senderName  = $user['name'] ?? $user['company_name'] ?? null;
+            $senderEmail = $user['email'] ?? null;
+
+            if (!$senderEmail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun Anda tidak memiliki email. Hubungi administrator.',
+                ], 422);
+            }
+
+            // Normalisasi cc_emails (plain string array dari form)
+            $ccEmails = array_values(array_filter($validated['cc_emails'] ?? []));
+
+            // Body HTML dari Quill; fallback ke plain text jika tidak ada
+            $bodyHtml = $validated['body_html'] ?? $validated['body'] ?? '';
+            if ($bodyHtml && !str_starts_with(ltrim($bodyHtml), '<')) {
+                $bodyHtml = '<p>' . nl2br(htmlspecialchars($bodyHtml)) . '</p>';
+            }
+
+            // ── STEP 1: Ekstrak inline images dari Quill HTML (data URI → cid:) ───
+            // Gambar yang di-paste ke Quill tersimpan sebagai base64 data URI di HTML.
+            // Perlu diubah ke cid: agar tampil inline di email client.
+            $emailInlineImages = [];
+            $emailBodyHtml     = $bodyHtml;
+
+            if ($emailBodyHtml) {
+                preg_match_all(
+                    '/<img[^>]+src="(data:(image\/[a-zA-Z+\-]+);base64,([A-Za-z0-9+\/=\s]+))"[^>]*>/i',
+                    $emailBodyHtml,
+                    $imgMatches,
+                    PREG_SET_ORDER
+                );
+                foreach ($imgMatches as $i => $m) {
+                    $mime    = strtolower($m[2]);
+                    $content = base64_decode(preg_replace('/\s+/', '', $m[3]));
+                    $ext     = ltrim(strrchr($mime, '/'), '/');
+                    $ext     = str_replace(['+xml', '+'], ['', '-'], $ext) ?: 'png';
+                    $cid     = 'img-' . ($i + 1) . '@jarvies';
+                    $imgName = 'image-' . ($i + 1) . '.' . $ext;
+
+                    $emailInlineImages[] = [
+                        'name'    => $imgName,
+                        'content' => $content,
+                        'mime'    => $mime,
+                        'cid'     => $cid,
+                    ];
+                    $emailBodyHtml = str_replace($m[1], 'cid:' . $cid, $emailBodyHtml);
+                }
+            }
+
+            // ── STEP 2: Baca file attachments dari request ───────────────────────
+            // Baca binary sekarang karena file akan dipakai dua kali:
+            // (a) upload ke M365 via GraphRelayService
+            // (b) forward ke EcoSystem API sebagai multipart
+            $emailFileAttachments = [];
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $emailFileAttachments[] = [
+                        'name'    => $file->getClientOriginalName(),
+                        'content' => file_get_contents($file->getRealPath()),
+                        'mime'    => $file->getMimeType() ?: 'application/octet-stream',
+                    ];
+                }
+            }
+
+            // ── STEP 3: Kirim email via GraphRelayService (Raditya → customer) ───
+            // Subject email = "[Menunggu Validasi] {description}"
+            // description di API harus SAMA dengan subject email (tanpa prefix).
+            // EcoSystem cocokkan staging ke email via LOWER(description) = LOWER(clean_subject).
+            $emailSubject = '[Menunggu Validasi] ' . $validated['description'];
+
+            $emailBody = $this->buildTicketEmailBody(
+                $senderName,
+                $emailBodyHtml ?: '<p><em>(Tidak ada pesan)</em></p>',
+                $validated
+            );
 
             try {
-                $emailToken = CustomerEmailToken::where('customer_id', $user['id'])->first();
-                $hasEmail   = $emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token);
-
-                // Jika ada email OAuth → kirim email saja, biarkan processInbox buat staging
-                if ($hasEmail) {
-                    $senderName   = $user['name'] ?? $user['company_name'] ?? $user['email'] ?? 'Customer';
-                    $emailSubject = $validated['description'];
-
-                    // Susun body email + info tambahan jika diisi
-                    $extraLines = [];
-                    if (!empty($validated['name']))   $extraLines[] = 'Name   : ' . $validated['name'];
-                    if (!empty($validated['no_hp']))  $extraLines[] = 'No HP  : ' . $validated['no_hp'];
-                    if (!empty($validated['module'])) $extraLines[] = 'Module : ' . $validated['module'];
-                    if (!empty($validated['client'])) $extraLines[] = 'Client : ' . $validated['client'];
-
-                    $emailBody = ($validated['body'] ?? '');
-                    if ($extraLines) {
-                        $emailBody .= "\n\n--- Informasi Tambahan ---\n" . implode("\n", $extraLines);
-                    }
-                    $emailBody .= "\n\n-- \n" . $senderName;
-
-                    $toEmail  = env('MS_SENDER_EMAIL');
-                    $service  = new CustomerEmailService();
-                    $threadId = $service->sendEmail(
-                        $emailToken, $toEmail, $emailSubject, $emailBody,
-                        null, null, [], [], '', $ccEmails
-                    );
-
-                    return response()->json([
-                        'success'    => true,
-                        'staging'    => true,
-                        'email_sent' => $threadId !== null,
-                        'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
-                    ], 201);
-                }
-
-                // Tidak ada email OAuth → kirim ke EcoSystem API agar relay email bisa berjalan
-                // (EcoSystem menyimpan ke staging_tickets dan kirim notifikasi approval via email helpdesk)
-                $ecosystemUrl = rtrim(env('ECOSYSTEM_API_URL', 'https://ecosystem.eclecticoffice.com/api'), '/');
-                $apiKey       = env('EXTERNAL_TICKET_API_KEY');
-                $senderName   = $user['name'] ?? $user['company_name'] ?? null;
-                $senderEmail  = $user['email'] ?? null;
-
-                // Konversi body plain text ke HTML sederhana agar konsisten dengan format EcoSystem
-                $bodyHtml = $validated['body'] ?? '';
-                if ($bodyHtml && !str_starts_with(ltrim($bodyHtml), '<')) {
-                    $bodyHtml = '<p>' . nl2br(htmlspecialchars($bodyHtml)) . '</p>';
-                }
-
-                $apiResponse = Http::withHeaders([
-                    'Accept'       => 'application/json',
-                    'Content-Type' => 'application/json',
-                    'X-Api-Key'    => $apiKey,
-                ])->timeout(15)->post("{$ecosystemUrl}/staging-tickets", [
-                    'description'        => $validated['description'],
-                    'body'               => $bodyHtml ?: null,
-                    'ticket_priority'    => $validated['ticket_priority'] ?? 'Medium',
-                    'sender_name'        => $senderName,
-                    'submitted_by_email' => $senderEmail,
-                    'cc_emails'          => $ccEmailsJson,
-                    'customer_id'        => $user['id'],
-                    'contact_id'         => $user['contact_id'] ?? null,
-                    'name'               => $validated['name'] ?? null,
-                    'no_hp'              => $validated['no_hp'] ?? null,
-                    'module'             => $validated['module'] ?? null,
-                    'client'             => $validated['client'] ?? null,
-                ]);
-
-                if ($apiResponse->successful()) {
-                    Log::info('TicketController@store: staging via EcoSystem API OK', [
-                        'customer_id' => $user['id'],
-                        'status'      => $apiResponse->status(),
-                    ]);
-
-                    return response()->json([
-                        'success'    => true,
-                        'staging'    => true,
-                        'email_sent' => false,
-                        'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
-                    ], 201);
-                }
-
-                // Fallback: EcoSystem API gagal → simpan staging lokal agar tidak hilang
-                Log::warning('TicketController@store: EcoSystem API failed, fallback to local staging', [
-                    'status' => $apiResponse->status(),
-                    'body'   => $apiResponse->body(),
-                ]);
-
-                $stagingService = new StagingTicketService();
-                $staging = $stagingService->createFromWeb(
-                    array_merge($validated, [
-                        'cc_emails'  => $ccEmailsJson,
-                        'contact_id' => $user['contact_id'] ?? null,
-                        'name'       => $validated['name'] ?? null,
-                        'no_hp'      => $validated['no_hp'] ?? null,
-                        'module'     => $validated['module'] ?? null,
-                        'client'     => $validated['client'] ?? null,
-                    ]),
-                    $user['id'],
+                $graphService = new GraphRelayService();
+                $emailResult  = $graphService->sendStandaloneEmail(
                     $senderEmail,
-                    $senderName
+                    $emailSubject,
+                    $emailBody,
+                    $ccEmails,
+                    $emailInlineImages,
+                    $emailFileAttachments
                 );
-
-                return response()->json([
-                    'success'    => true,
-                    'staging'    => true,
-                    'email_sent' => false,
-                    'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
-                    'data'       => [
-                        'id'              => $staging->id,
-                        'status'          => $staging->status,
-                        'ticket_priority' => $staging->ticket_priority,
-                        'created_at'      => $staging->created_at,
-                    ],
-                ], 201);
-
             } catch (\Exception $e) {
-                Log::error('TicketController@store: staging creation failed', [
+                Log::error('TicketController@store: Graph email exception', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-
                 return response()->json([
                     'success' => false,
-                    'message' => 'Failed to submit ticket: ' . $e->getMessage(),
+                    'message' => 'Gagal mengirim tiket: ' . $e->getMessage(),
                 ], 500);
             }
+
+            if (!$emailResult) {
+                Log::error('TicketController@store: sendStandaloneEmail returned null', [
+                    'customer_id' => $user['id'],
+                    'to'          => $senderEmail,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengirim email. Silakan coba lagi.',
+                ], 500);
+            }
+
+            $internetMsgId  = $emailResult['internet_message_id'];
+            $conversationId = $emailResult['conversation_id'];
+
+            Log::info('TicketController@store: email sent', [
+                'customer_id'         => $user['id'],
+                'to'                  => $senderEmail,
+                'internet_message_id' => $internetMsgId,
+                'conversation_id'     => $conversationId,
+                'inline_images'       => count($emailInlineImages),
+                'file_attachments'    => count($emailFileAttachments),
+            ]);
+
+            // ── STEP 4: POST ke EcoSystem API /jarvies/staging-tickets ───────────
+            // Wajib multipart/form-data — jangan set Content-Type manual.
+            // EcoSystem butuh internet_message_id untuk linkStagingToEmail().
+
+            // Build multipart fields
+            $multipart = [
+                // Wajib
+                ['name' => 'description',         'contents' => $validated['description']],
+                ['name' => 'customer_id',         'contents' => (string) $user['id']],
+                // Sangat direkomendasikan
+                ['name' => 'submitted_by_email',  'contents' => $senderEmail],
+                ['name' => 'body',                'contents' => $emailBodyHtml ?: ''],
+                ['name' => 'internet_message_id', 'contents' => $internetMsgId],
+                // Opsional
+                ['name' => 'sender_name',         'contents' => $senderName ?? ''],
+                ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
+            ];
+
+            // cc_emails sebagai JSON string [{name, address}] sesuai format EcoSystem
+            if (!empty($ccEmails)) {
+                $multipart[] = [
+                    'name'     => 'cc_emails',
+                    'contents' => json_encode(array_map(
+                        fn($email) => ['name' => $email, 'address' => $email],
+                        $ccEmails
+                    )),
+                ];
+            }
+
+            // Optional fields
+            foreach (['name', 'no_hp', 'module', 'client'] as $field) {
+                if (!empty($validated[$field])) {
+                    $multipart[] = ['name' => $field, 'contents' => $validated[$field]];
+                }
+            }
+            if (!empty($user['contact_id'])) {
+                $multipart[] = ['name' => 'contact_id', 'contents' => (string) $user['contact_id']];
+            }
+
+            // File attachments — dikirim ulang ke EcoSystem dengan key 'attachments[]'
+            // Binary sudah dibaca di STEP 2, tidak perlu baca ulang dari request
+            foreach ($emailFileAttachments as $file) {
+                $multipart[] = [
+                    'name'     => 'attachments[]',
+                    'contents' => $file['content'],
+                    'filename' => $file['name'],
+                    'headers'  => ['Content-Type' => $file['mime']],
+                ];
+            }
+
+            try {
+                $ecoResponse = Http::withHeaders(['X-Api-Key' => config('ecosystem.api_key')])
+                    ->asMultipart()
+                    ->timeout(20)
+                    ->post(config('ecosystem.url') . '/jarvies/staging-tickets', $multipart);
+
+                if (!$ecoResponse->successful()) {
+                    Log::warning('TicketController@store: EcoSystem API failed (non-critical)', [
+                        'status' => $ecoResponse->status(),
+                        'body'   => $ecoResponse->body(),
+                    ]);
+                }
+            } catch (\Exception $apiEx) {
+                Log::warning('TicketController@store: EcoSystem API exception (non-critical)', [
+                    'error' => $apiEx->getMessage(),
+                ]);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'staging'    => true,
+                'email_sent' => true,
+                'message'    => 'Tiket Anda telah dikirim dan sedang menunggu validasi admin.',
+            ], 201);
         }
 
         // ── Admin: tetap buat ticket langsung (bypass staging) ─────────────
@@ -1329,6 +1457,55 @@ class TicketController extends Controller
     /**
      * Map MIME type ke attachment_type enum.
      */
+    /**
+     * Bangun HTML body email untuk create ticket.
+     * Menampilkan metadata (no_hp, module, client) dan deskripsi lengkap dari Quill.
+     */
+    private function buildTicketEmailBody(
+        ?string $senderName,
+        string  $bodyHtml,
+        array   $fields
+    ): string {
+        $rows = '';
+        if (!empty($fields['no_hp'])) {
+            $rows .= '<tr>
+                <td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Phone</td>
+                <td>: ' . htmlspecialchars($fields['no_hp']) . '</td>
+            </tr>';
+        }
+        if (!empty($fields['module'])) {
+            $rows .= '<tr>
+                <td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Module</td>
+                <td>: ' . htmlspecialchars($fields['module']) . '</td>
+            </tr>';
+        }
+        if (!empty($fields['client'])) {
+            $rows .= '<tr>
+                <td style="padding:4px 12px 4px 0;font-weight:600;color:#555;white-space:nowrap">Client</td>
+                <td>: ' . htmlspecialchars($fields['client']) . '</td>
+            </tr>';
+        }
+
+        $metaTable = $rows
+            ? '<table style="border-collapse:collapse;margin-bottom:16px">' . $rows . '</table>'
+            : '';
+
+        $bodySection = '<div style="margin-bottom:16px">
+            <strong>Description:</strong>
+            <div style="margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">
+                ' . $bodyHtml . '
+            </div>
+        </div>';
+
+        $from = htmlspecialchars($senderName ?? 'Customer');
+
+        return '<p style="color:#555;margin-bottom:12px">
+                    <em>[Tiket baru dari ' . $from . ' via Jarvies]</em>
+                </p>'
+            . $metaTable
+            . $bodySection;
+    }
+
     private function getAttachmentType(string $mime): string
     {
         if (str_starts_with($mime, 'image/'))                                    return 'image';
@@ -1450,140 +1627,101 @@ class TicketController extends Controller
             ]);
 
             if ($roleId == 3) {
-                // Cek apakah customer punya OAuth email yang terhubung
-                $emailToken = CustomerEmailToken::where('customer_id', $sessionUser['id'])->first();
-                $hasOAuth   = $emailToken && !($emailToken->isExpired() && !$emailToken->refresh_token);
+                // === RELAY VIA HELPDESK (satu-satunya jalur) ===
+                // Email dikirim FROM Raditya/Helpdesk TO customer.
+                // Threading via M365 conversationId (email_thread_id) + In-Reply-To.
+                // Customer reply dari email langsung → masuk via processInbox().
 
-                if ($hasOAuth && $ticket->email_thread_id) {
-                    // === JALUR OAUTH + THREAD AKTIF ===
-                    // Kirim email langsung dari akun OAuth customer ke helpdesk M365.
-                    // JANGAN panggil customer-reply API — processInbox akan otomatis
-                    // menyimpan pesan ke DB saat email diterima M365 (1 jalur = tidak duplikat).
+                $senderEmail = $sessionUser['email'] ?? null;
 
-                    $emailSubject = 'Ticket #' . $ticket->ticket_number . ': '
-                        . mb_substr($ticket->description ?? '', 0, 80);
+                $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                    ->where('channel', 'email')
+                    ->whereNotNull('email_message_id')
+                    ->orderByDesc('created_at')
+                    ->value('email_message_id');
 
-                    $lastEmailMsgId = TicketMessage::where('ticket_id', $ticket->ticket_id)
-                        ->where('channel', 'email')
-                        ->where('sender_type', '!=', 'customer')
-                        ->whereNotNull('email_message_id')
-                        ->orderByDesc('created_at')
-                        ->value('email_message_id');
+                $relayHtml = $htmlBody
+                    ?: ('<p>' . nl2br(htmlspecialchars($request->input('comment', ''))) . '</p>');
 
-                    $toEmail      = env('ECOSYSTEM_HELPDESK_EMAIL', env('MS_SENDER_EMAIL'));
-                    $emailService = new CustomerEmailService();
-                    $sent = $emailService->sendEmail(
-                        $emailToken,
-                        $toEmail,
-                        $emailSubject,
-                        (string) ($request->input('comment') ?? ''),
-                        null,
-                        $lastEmailMsgId,
-                        $fileAttachments,
-                        $inlineImages,
-                        $htmlBody
-                    );
-
-                    if ($sent === null) {
-                        return response()->json(['success' => false, 'message' => 'Failed to send email. Please try again.'], 500);
-                    }
-
-                    Log::info('addComment: OAuth email sent (no API call)', [
-                        'ticket_id'     => $ticket->ticket_id,
-                        'provider'      => $emailToken->provider,
-                        'from'          => $emailToken->provider_email,
-                        'to'            => $toEmail,
-                        'in_reply_to'   => $lastEmailMsgId,
-                        'files'         => count($fileAttachments),
-                        'inline_images' => count($inlineImages),
-                    ]);
-
-                } else {
-                    // === JALUR NON-OAUTH atau BELUM ADA THREAD ===
-                    // Kirim relay email FROM raditya TO customer via Microsoft Graph (email-first).
-                    // Simpan TicketMessage + TicketAttachment langsung ke DB (shared database).
-
-                    $senderEmail = $hasOAuth
-                        ? $emailToken->provider_email
-                        : ($sessionUser['email'] ?? null);
-
-                    // Ambil email_message_id terakhir dalam thread untuk header In-Reply-To
-                    $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
-                        ->whereNotNull('email_message_id')
-                        ->orderByDesc('created_at')
-                        ->value('email_message_id');
-
-                    // Siapkan HTML body (htmlBody sudah berisi cid: references untuk inline images)
-                    $relayHtml = $htmlBody
-                        ?: ('<p>' . nl2br(htmlspecialchars($request->input('comment', ''))) . '</p>');
-
-                    $graphService = new GraphRelayService();
-                    $result = $graphService->sendRelayEmail(
-                        $ticket,
-                        $senderEmail ?? '',
-                        $senderName,
-                        $relayHtml,
-                        $inReplyTo,
-                        $inlineImages,
-                        $fileAttachments
-                    );
-
-                    if (!$result) {
-                        return response()->json(['success' => false, 'message' => 'Failed to send message. Please try again.'], 500);
-                    }
-
-                    // Simpan TicketMessage ke DB
-                    $ticketMessage = TicketMessage::create([
-                        'ticket_id'           => $ticket->ticket_id,
-                        'sender_type'         => 'customer',
-                        'sender_id'           => $sessionUser['id'],
-                        'sender_email'        => $senderEmail,
-                        'sender_name'         => $senderName,
-                        'message'             => $request->input('comment', ''),
-                        'message_html'        => $htmlBody ?: null,
-                        'channel'             => 'email',
-                        'email_message_id'    => $result['internet_message_id'],
-                        'is_internal_note'    => false,
-                        'is_read_by_customer' => true,
-                        'is_read_by_agent'    => false,
-                    ]);
-
-                    // Set email_thread_id dari conversationId jika belum ada
-                    if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
-                        $ticket->update(['email_thread_id' => $result['conversation_id']]);
-                    }
-
-                    $ticket->update(['last_message_at' => now()]);
-
-                    // Simpan TicketAttachment dengan Sent Items IDs (bukan draft IDs)
-                    foreach ($result['attachments'] as $att) {
-                        if (!$att['uploaded']) {
-                            continue;
+                $ticketCcEmails = [];
+                if (!empty($ticket->cc_emails)) {
+                    $decoded = is_array($ticket->cc_emails)
+                        ? $ticket->cc_emails
+                        : json_decode($ticket->cc_emails, true);
+                    foreach ((array) $decoded as $cc) {
+                        if (is_array($cc)) {
+                            $addr = $cc['address'] ?? $cc['email'] ?? null;
+                        } else {
+                            $addr = $cc;
                         }
-                        TicketAttachment::create([
-                            'ticket_id'           => $ticket->ticket_id,
-                            'message_id'          => $ticketMessage->id,
-                            'uploaded_by_type'    => 'customer',
-                            'uploaded_by_id'      => $sessionUser['id'],
-                            'attachment_type'     => $this->getAttachmentType($att['mime'] ?? 'application/octet-stream'),
-                            'graph_message_id'    => $result['graph_message_id'],
-                            'graph_attachment_id' => $att['graph_att_id'],
-                            'content_id'          => $att['cid'] ?? null,
-                            'is_inline'           => $att['is_inline'],
-                            'file_name'           => $att['name'],
-                            'file_size'           => $att['size'],
-                            'mime_type'           => $att['mime'],
-                        ]);
+                        if ($addr && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                            $ticketCcEmails[] = $addr;
+                        }
                     }
+                }
 
-                    Log::info('addComment: relay email sent via Graph', [
-                        'ticket_id'   => $ticket->ticket_id,
-                        'to'          => $senderEmail,
-                        'internet_id' => $result['internet_message_id'],
-                        'graph_msg'   => $result['graph_message_id'],
-                        'attachments' => count($result['attachments']),
+                $graphService = new GraphRelayService();
+                $result = $graphService->sendRelayEmail(
+                    $ticket,
+                    $senderEmail ?? '',
+                    $senderName,
+                    $relayHtml,
+                    $inReplyTo,
+                    $inlineImages,
+                    $fileAttachments,
+                    $ticketCcEmails
+                );
+
+                if (!$result) {
+                    return response()->json(['success' => false, 'message' => 'Failed to send message. Please try again.'], 500);
+                }
+
+                $ticketMessage = TicketMessage::create([
+                    'ticket_id'           => $ticket->ticket_id,
+                    'sender_type'         => 'customer',
+                    'sender_id'           => $sessionUser['id'],
+                    'sender_email'        => $senderEmail,
+                    'sender_name'         => $senderName,
+                    'message'             => $request->input('comment', ''),
+                    'message_html'        => $htmlBody ?: null,
+                    'channel'             => 'email',
+                    'email_message_id'    => $result['internet_message_id'],
+                    'is_internal_note'    => false,
+                    'is_read_by_customer' => true,
+                    'is_read_by_agent'    => false,
+                ]);
+
+                if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
+                    $ticket->update(['email_thread_id' => $result['conversation_id']]);
+                }
+
+                $ticket->update(['last_message_at' => now()]);
+
+                foreach ($result['attachments'] as $att) {
+                    if (!$att['uploaded']) continue;
+                    TicketAttachment::create([
+                        'ticket_id'           => $ticket->ticket_id,
+                        'message_id'          => $ticketMessage->id,
+                        'uploaded_by_type'    => 'customer',
+                        'uploaded_by_id'      => $sessionUser['id'],
+                        'attachment_type'     => $this->getAttachmentType($att['mime'] ?? 'application/octet-stream'),
+                        'graph_message_id'    => $result['graph_message_id'],
+                        'graph_attachment_id' => $att['graph_att_id'],
+                        'content_id'          => $att['cid'] ?? null,
+                        'is_inline'           => $att['is_inline'],
+                        'file_name'           => $att['name'],
+                        'file_size'           => $att['size'],
+                        'mime_type'           => $att['mime'],
                     ]);
                 }
+
+                Log::info('addComment: relay email sent via Graph', [
+                    'ticket_id'   => $ticket->ticket_id,
+                    'to'          => $senderEmail,
+                    'internet_id' => $result['internet_message_id'],
+                    'graph_msg'   => $result['graph_message_id'],
+                    'attachments' => count($result['attachments']),
+                ]);
 
             } else {
                 // Admin reply → tulis langsung ke DB

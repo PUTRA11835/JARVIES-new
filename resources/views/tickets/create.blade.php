@@ -13,6 +13,65 @@
 </a>
 @endsection
 
+@push('styles')
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<style>
+.ql-toolbar.ql-snow {
+    border: none !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 4px 8px !important;
+    background: #f9fafb;
+    border-radius: 0 !important;
+}
+.ql-container.ql-snow {
+    border: none !important;
+    font-size: 14px;
+    font-family: inherit;
+}
+.ql-editor {
+    min-height: 160px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 10px 14px;
+    color: #1f2937;
+    line-height: 1.6;
+}
+.ql-editor.ql-blank::before {
+    color: #9ca3af;
+    font-style: normal;
+    font-size: 14px;
+    left: 14px;
+}
+#quillWrapper {
+    border: 1px solid #d1d5db;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+#quillWrapper.focused {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px #991b1b;
+}
+.attach-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 9999px;
+    padding: 3px 10px 3px 8px;
+    font-size: 12px;
+    color: #1e40af;
+    max-width: 200px;
+}
+.attach-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>
+@endpush
+
 @section('content')
 
 <div class="max-w-2xl mx-auto">
@@ -22,45 +81,6 @@
         <div class="px-6 py-5 border-b border-gray-100">
             <h2 class="text-base font-bold text-gray-900">New Support Ticket</h2>
             <p class="text-sm text-gray-400 mt-0.5">Our support team will review and respond to your request.</p>
-        </div>
-
-        {{-- Email Notification Row (optional) --}}
-        <div id="emailNotifRow" class="px-6 py-3 bg-gray-50 border-b border-gray-100">
-            <div id="emailNotifLoading" class="flex items-center gap-2 text-xs text-gray-400 animate-pulse">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
-                </svg>
-                Checking email settings...
-            </div>
-
-            {{-- Linked state --}}
-            <div id="emailLinkedRow" class="hidden items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-xs text-green-700">
-                    <svg class="w-3.5 h-3.5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <span>Replies will be sent to <span id="linkedEmailAddr" class="font-semibold"></span></span>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" onclick="openOAuthModal()" class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Change</button>
-                    <span class="text-gray-300">·</span>
-                    <button type="button" onclick="disconnectEmail()" class="text-xs text-red-400 hover:text-red-600 transition-colors">Disconnect</button>
-                </div>
-            </div>
-
-            {{-- Not linked state --}}
-            <div id="emailNotLinkedRow" class="hidden items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-xs text-gray-500">
-                    <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <span>Connect your email to receive replies in your inbox <span class="text-gray-400">(optional)</span></span>
-                </div>
-                <button type="button" onclick="openOAuthModal()"
-                    class="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors shrink-0">
-                    Link email →
-                </button>
-            </div>
         </div>
 
         {{-- Form --}}
@@ -136,34 +156,54 @@
                 </div>
             </div>
 
-            {{-- CC (always shown, applies when OAuth email is active) --}}
-            <div id="ccFieldWrapper">
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-                    CC
-                    <span class="text-xs font-normal text-gray-400 ml-1">(optional — copy recipients for ticket emails)</span>
-                </label>
-                {{-- Tag input: press Enter/comma/space to add an email --}}
-                <div id="ccTagsContainer"
-                    class="flex flex-wrap gap-1.5 px-3 py-2 border border-gray-300 rounded-xl text-sm cursor-text min-h-[42px] items-center focus-within:ring-2 focus-within:ring-red-800 focus-within:border-transparent transition-all">
-                    <input type="text" id="ccInput"
-                        placeholder="Add email then press Enter…"
-                        autocomplete="off"
-                        class="outline-none flex-1 min-w-[200px] text-sm text-gray-800 placeholder-gray-400 bg-transparent py-0.5">
+            {{-- CC — row-based, default 0 rows --}}
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">
+                        CC
+                        <span class="text-xs font-normal text-gray-400 ml-1">(optional)</span>
+                    </label>
+                    <button type="button" onclick="addCcRow()"
+                        class="flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add CC
+                    </button>
                 </div>
-                {{-- Hidden inputs created by JS --}}
-                <div id="ccHiddenInputs"></div>
+                <div id="ccRows" class="space-y-2"></div>
                 <p id="ccError" class="text-xs text-red-600 mt-1 hidden"></p>
             </div>
 
-            {{-- Body --}}
+            {{-- Details — Quill rich text editor --}}
             <div>
-                <label for="body" class="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
                     Details <span class="text-red-500">*</span>
                 </label>
-                <textarea id="body" name="body" rows="8"
-                    placeholder="Describe your issue in detail. Include steps to reproduce, error messages, or screenshots if relevant..."
-                    class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all resize-none leading-relaxed"
-                    required></textarea>
+                <div id="quillWrapper">
+                    <div id="detailsEditor"></div>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">You can paste images directly into the editor.</p>
+            </div>
+
+            {{-- Attachments --}}
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">
+                        Attachments
+                        <span class="text-xs font-normal text-gray-400 ml-1">(optional)</span>
+                    </label>
+                    <button type="button" onclick="document.getElementById('attachInput').click()"
+                        class="flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                        Add File
+                    </button>
+                </div>
+                <input type="file" id="attachInput" multiple class="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv">
+                <div id="attachPreview" class="flex flex-wrap gap-2"></div>
             </div>
 
             {{-- Actions --}}
@@ -187,64 +227,6 @@
             </div>
         </form>
 
-    </div>
-</div>
-
-{{-- =================== OAUTH PROVIDER MODAL =================== --}}
-<div id="oauthModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-
-        <div class="flex items-center justify-between mb-5">
-            <h3 class="text-base font-semibold text-gray-800">Link Your Email Account</h3>
-            <button onclick="closeOAuthModal()" class="text-gray-400 hover:text-gray-600 p-1">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <p class="text-sm text-gray-500 mb-4">
-            Connect your email so ticket replies are sent directly to your inbox.
-        </p>
-
-        {{-- Google --}}
-        <a href="{{ route('oauth.email.redirect', ['provider' => 'google', 'return' => route('tickets.create')]) }}"
-            class="flex items-center gap-3 w-full px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors mb-3 group">
-            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            <div class="flex-1 text-left">
-                <div class="text-sm font-medium text-gray-700 group-hover:text-gray-900">Continue with Google</div>
-                <div class="text-xs text-gray-400">Gmail & Google Account</div>
-            </div>
-            <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-        </a>
-
-        {{-- Microsoft --}}
-        <a href="{{ route('oauth.email.redirect', ['provider' => 'azure', 'return' => route('tickets.create')]) }}"
-            class="flex items-center gap-3 w-full px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors mb-4 group">
-            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path d="M11.4 2H2v9.4h9.4V2z" fill="#F25022"/>
-                <path d="M22 2h-9.4v9.4H22V2z" fill="#7FBA00"/>
-                <path d="M11.4 12.6H2V22h9.4v-9.4z" fill="#00A4EF"/>
-                <path d="M22 12.6h-9.4V22H22v-9.4z" fill="#FFB900"/>
-            </svg>
-            <div class="flex-1 text-left">
-                <div class="text-sm font-medium text-gray-700 group-hover:text-gray-900">Continue with Microsoft</div>
-                <div class="text-xs text-gray-400">Outlook & Microsoft Account</div>
-            </div>
-            <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-        </a>
-
-        <p class="text-xs text-gray-400 text-center">
-            One-time setup. Your token is stored securely and only used for sending ticket notifications.
-        </p>
     </div>
 </div>
 
@@ -287,6 +269,7 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const CSRF_TOKEN = '{{ csrf_token() }}';
 
@@ -313,7 +296,6 @@ const _alertConfigs = {
         title: 'Warning',
     },
 };
-
 let _alertCallback = null;
 
 function showAlert(message, type = 'info', title = null, onClose = null) {
@@ -328,7 +310,6 @@ function showAlert(message, type = 'info', title = null, onClose = null) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
-
 function closeAlertModal() {
     const modal = document.getElementById('alertModal');
     modal.classList.add('hidden');
@@ -342,7 +323,6 @@ function closeAlertModal() {
 
 // ===== Confirm Modal =====
 let _confirmResolve = null;
-
 function showConfirm(message, title = 'Confirm') {
     return new Promise(resolve => {
         _confirmResolve = resolve;
@@ -353,7 +333,6 @@ function showConfirm(message, title = 'Confirm') {
         modal.classList.add('flex');
     });
 }
-
 function resolveConfirm(value) {
     const modal = document.getElementById('confirmModal');
     modal.classList.add('hidden');
@@ -364,202 +343,163 @@ function resolveConfirm(value) {
         r(value);
     }
 }
-
 document.getElementById('confirmCancelBtn').addEventListener('click', () => resolveConfirm(false));
 document.getElementById('confirmOkBtn').addEventListener('click',     () => resolveConfirm(true));
-
-// ===== OAuth Email Status =====
-let emailLinked = false;
-
-async function loadEmailStatus() {
-    try {
-        const res  = await fetch('{{ route("oauth.email.status") }}');
-        const data = await res.json();
-
-        document.getElementById('emailNotifLoading').classList.add('hidden');
-
-        if (data.linked && !data.expired) {
-            emailLinked = true;
-
-            const row = document.getElementById('emailLinkedRow');
-            document.getElementById('linkedEmailAddr').textContent = data.email;
-            row.classList.remove('hidden');
-            row.classList.add('flex');
-        } else {
-            emailLinked = false;
-
-            const row = document.getElementById('emailNotLinkedRow');
-            row.classList.remove('hidden');
-            row.classList.add('flex');
-        }
-    } catch (err) {
-        // Check failed — hide loading, form remains usable
-        document.getElementById('emailNotifLoading').classList.add('hidden');
-    }
-}
-
-function openOAuthModal() {
-    const m = document.getElementById('oauthModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
-}
-function closeOAuthModal() {
-    const m = document.getElementById('oauthModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
-}
-
-document.getElementById('oauthModal').addEventListener('click', function (e) {
-    if (e.target === this) closeOAuthModal();
-});
-
-async function disconnectEmail() {
-    const ok = await showConfirm('The connected email account will be disconnected.', 'Disconnect email account?');
-    if (!ok) return;
-
-    const res  = await fetch('{{ route("oauth.email.disconnect") }}', {
-        method:  'DELETE',
-        headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'Accept': 'application/json' },
-    });
-    const data = await res.json();
-    if (data.success) {
-        emailLinked = false;
-        document.getElementById('emailLinkedRow').classList.add('hidden');
-        document.getElementById('emailLinkedRow').classList.remove('flex');
-        const row = document.getElementById('emailNotLinkedRow');
-        row.classList.remove('hidden');
-        row.classList.add('flex');
-        showAlert('Email account successfully disconnected.', 'info');
-    }
-}
 
 async function discardTicket() {
     const ok = await showConfirm('Unsaved changes will be lost.', 'Discard this ticket?');
     if (ok) window.location.href = '{{ route("tickets.index") }}';
 }
 
-// ===== CC Tag Input =====
-const ccTags  = [];
-const ccInput = document.getElementById('ccInput');
-const ccContainer = document.getElementById('ccTagsContainer');
-
-function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function addCcTag(email) {
-    email = email.trim().toLowerCase();
-    if (!email) return;
-    if (!isValidEmail(email)) {
-        const err = document.getElementById('ccError');
-        err.textContent = `"${email}" is not a valid email address.`;
-        err.classList.remove('hidden');
-        return;
-    }
-    if (ccTags.includes(email)) {
-        ccInput.value = '';
-        return;
-    }
-    if (ccTags.length >= 10) {
-        const err = document.getElementById('ccError');
-        err.textContent = 'Maximum 10 CC email addresses.';
-        err.classList.remove('hidden');
+// ===== CC Rows =====
+let ccRowCount = 0;
+function addCcRow() {
+    if (ccRowCount >= 10) {
+        document.getElementById('ccError').textContent = 'Maximum 10 CC addresses.';
+        document.getElementById('ccError').classList.remove('hidden');
         return;
     }
     document.getElementById('ccError').classList.add('hidden');
-    ccTags.push(email);
-
-    // Create tag chip
-    const chip = document.createElement('span');
-    chip.className = 'inline-flex items-center gap-1 bg-red-50 border border-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full';
-    chip.dataset.email = email;
-    chip.innerHTML = `${escHtmlCreate(email)}<button type="button" class="ml-0.5 hover:text-red-600 transition-colors" onclick="removeCcTag('${escHtmlCreate(email)}')">
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-    </button>`;
-    ccContainer.insertBefore(chip, ccInput);
-
-    // Hidden input for form submit
-    const hidden = document.createElement('input');
-    hidden.type  = 'hidden';
-    hidden.name  = 'cc_tag_' + ccTags.length;
-    hidden.value = email;
-    hidden.dataset.ccTag = email;
-    document.getElementById('ccHiddenInputs').appendChild(hidden);
-
-    ccInput.value = '';
+    ccRowCount++;
+    const id = 'ccRow_' + ccRowCount;
+    const row = document.createElement('div');
+    row.id = id;
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `
+        <input type="email" name="cc_emails[]" placeholder="email@example.com"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400
+                   focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+        <button type="button" onclick="removeCcRow('${id}')"
+            class="p-1.5 text-gray-400 hover:text-red-600 transition-colors shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>`;
+    document.getElementById('ccRows').appendChild(row);
+    row.querySelector('input').focus();
+}
+function removeCcRow(id) {
+    const row = document.getElementById(id);
+    if (row) row.remove();
 }
 
-function removeCcTag(email) {
-    const idx = ccTags.indexOf(email);
-    if (idx > -1) ccTags.splice(idx, 1);
+// ===== Quill Editor =====
+const quill = new Quill('#detailsEditor', {
+    theme: 'snow',
+    placeholder: 'Describe your issue in detail. Include steps to reproduce, error messages, or screenshots if relevant...',
+    modules: {
+        toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['blockquote', 'code-block'],
+            ['link', 'image'],
+            ['clean'],
+        ],
+    },
+});
 
-    // Remove chip
-    ccContainer.querySelectorAll('[data-email]').forEach(chip => {
-        if (chip.dataset.email === email) chip.remove();
-    });
-    // Remove hidden input
-    document.getElementById('ccHiddenInputs').querySelectorAll('[data-cc-tag]').forEach(inp => {
-        if (inp.dataset.ccTag === email) inp.remove();
-    });
-}
-
-function escHtmlCreate(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-ccInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-        e.preventDefault();
-        addCcTag(this.value);
-    } else if (e.key === 'Backspace' && this.value === '' && ccTags.length > 0) {
-        removeCcTag(ccTags[ccTags.length - 1]);
+// Focus ring on quill wrapper
+quill.on('selection-change', (range) => {
+    const wrapper = document.getElementById('quillWrapper');
+    if (range) {
+        wrapper.classList.add('focused');
+    } else {
+        wrapper.classList.remove('focused');
     }
 });
 
-ccInput.addEventListener('blur', function () {
-    if (this.value.trim()) addCcTag(this.value);
+// ===== Attachments =====
+const selectedFiles = [];
+
+document.getElementById('attachInput').addEventListener('change', function () {
+    Array.from(this.files).forEach(file => {
+        if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+            selectedFiles.push(file);
+        }
+    });
+    this.value = '';
+    renderAttachPreview();
 });
 
-ccContainer.addEventListener('click', () => ccInput.focus());
+function renderAttachPreview() {
+    const container = document.getElementById('attachPreview');
+    container.innerHTML = '';
+    selectedFiles.forEach((file, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'attach-chip';
+        chip.innerHTML = `
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>
+            <span title="${escH(file.name)}">${escH(file.name)}</span>
+            <span class="text-blue-400 shrink-0">${fmtSize(file.size)}</span>
+            <button type="button" onclick="removeAttach(${idx})" class="shrink-0 text-blue-300 hover:text-red-500 transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>`;
+        container.appendChild(chip);
+    });
+}
+function removeAttach(idx) {
+    selectedFiles.splice(idx, 1);
+    renderAttachPreview();
+}
+function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+function escH(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ===== Form Submit =====
 document.getElementById('ticketForm').addEventListener('submit', async function (e) {
     e.preventDefault();
 
     const subject  = document.getElementById('subject').value.trim();
-    const body     = document.getElementById('body').value.trim();
+    const bodyHtml = quill.root.innerHTML.trim();
+    const bodyText = quill.getText().trim();
     const priority = document.querySelector('input[name="ticket_priority"]:checked')?.value || 'Medium';
-    const name     = document.getElementById('name').value.trim() || undefined;
-    const no_hp    = document.getElementById('no_hp').value.trim() || undefined;
-    const module   = document.getElementById('module').value.trim() || undefined;
-    const client   = document.getElementById('client').value.trim() || undefined;
 
-    // Flush any email being typed but not yet confirmed
-    if (ccInput.value.trim()) addCcTag(ccInput.value);
+    if (!subject)   { showAlert('Subject cannot be empty.', 'warning'); return; }
+    if (!bodyText)  { showAlert('Details cannot be empty.', 'warning'); return; }
 
-    if (!subject) { showAlert('Subject cannot be empty.', 'warning'); return; }
-    if (!body)    { showAlert('Details cannot be empty.', 'warning'); return; }
+    // Validate CC inputs
+    const ccInputEls = document.querySelectorAll('#ccRows input[type="email"]');
+    const ccEmails   = [];
+    for (const inp of ccInputEls) {
+        const val = inp.value.trim();
+        if (!val) continue;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+            inp.focus();
+            showAlert(`"${val}" is not a valid email address.`, 'warning');
+            return;
+        }
+        ccEmails.push(val);
+    }
 
     setLoading(true);
 
     try {
+        const fd = new FormData();
+        fd.append('_token',          CSRF_TOKEN);
+        fd.append('description',     subject);
+        fd.append('body_html',       bodyHtml);
+        fd.append('body',            bodyText);
+        fd.append('ticket_priority', priority);
+        fd.append('name',   document.getElementById('name').value.trim());
+        fd.append('no_hp',  document.getElementById('no_hp').value.trim());
+        fd.append('module', document.getElementById('module').value.trim());
+        fd.append('client', document.getElementById('client').value.trim());
+        ccEmails.forEach(email => fd.append('cc_emails[]', email));
+        selectedFiles.forEach(file => fd.append('attachments[]', file));
+
         const res  = await fetch('{{ route("tickets.store") }}', {
             method:  'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept':       'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN,
-            },
-            body: JSON.stringify({
-                description:     subject,
-                body:            body,
-                ticket_priority: priority,
-                cc_emails:       ccTags.length > 0 ? ccTags : undefined,
-                name,
-                no_hp,
-                module,
-                client,
-            }),
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body:    fd,
         });
 
         const data = await res.json();
@@ -597,14 +537,5 @@ function setLoading(loading) {
     document.getElementById('sendText').textContent = loading ? 'Submitting...' : 'Submit Ticket';
 }
 
-// ===== Flash session from OAuth callback =====
-@if(session('oauth_success'))
-document.addEventListener('DOMContentLoaded', () => showAlert(@json(session('oauth_success')), 'success', 'Email Connected'));
-@endif
-@if(session('oauth_error'))
-document.addEventListener('DOMContentLoaded', () => showAlert(@json(session('oauth_error')), 'error', 'Connection Failed'));
-@endif
-
-loadEmailStatus();
 </script>
 @endpush
