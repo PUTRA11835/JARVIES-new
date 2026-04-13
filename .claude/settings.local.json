@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/HP/tennisartist_backend/**)",
+      "Read(//c//**)",
+      "Read(//c/EcoSystem-2/**)",
+      "Read(//c/EcoSystemF/**)",
+      "Bash(grep -n \"internet_message_id\\\\|jarvies.api_key\\\\|JarviesApiKey\" /c/EcoSystem-2/app/Http/Middleware/*.php)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

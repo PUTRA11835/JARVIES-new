@@ -35,13 +35,14 @@ class StagingTicketService
             'no_hp'              => $data['no_hp'] ?? null,
             'module'             => $data['module'] ?? null,
             'client'             => $data['client'] ?? null,
-            'ticket_priority'    => $data['ticket_priority'] ?? 'Medium', // Very High|High|Medium|Low
+            'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $customerEmail,
             'sender_name'        => $senderName,
             'email_thread_id'    => $data['email_thread_id'] ?? null,
             'email_message_id'   => $data['email_message_id'] ?? null,
+            'customer_thread_id' => $data['email_thread_id'] ?? null,
         ]);
 
         Log::info('StagingTicketService: new staging ticket created', [

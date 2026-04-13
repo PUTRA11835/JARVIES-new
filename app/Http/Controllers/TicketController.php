@@ -484,7 +484,22 @@ class TicketController extends Controller
                 'file_attachments'    => count($emailFileAttachments),
             ]);
 
-            // ── STEP 4: POST ke EcoSystem API /jarvies/staging-tickets ───────────
+            // ── STEP 4a: Simpan staging ke DB JARVIES sendiri ────────────────────
+            // Ini memastikan staging selalu muncul di ticket list customer,
+            // bahkan jika EcoSystem API tidak tersedia.
+            $service = new StagingTicketService();
+            $service->createFromWeb(
+                array_merge($validated, [
+                    'email_thread_id'  => $conversationId,
+                    'email_message_id' => $internetMsgId,
+                    'cc_emails'        => $ccEmails ?: null,
+                ]),
+                $user['id'],
+                $senderEmail,
+                $senderName
+            );
+
+            // ── STEP 4b: POST ke EcoSystem API /jarvies/staging-tickets ──────────
             // Wajib multipart/form-data — jangan set Content-Type manual.
             // EcoSystem butuh internet_message_id untuk linkStagingToEmail().
 

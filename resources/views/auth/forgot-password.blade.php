@@ -13,9 +13,21 @@
             border-color: #991b1b;
             box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.1);
         }
+        #toast-container { position:fixed;top:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.75rem;max-width:22rem;width:100%;pointer-events:none; }
+        .toast { display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:.75rem;border:1.5px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,.08);position:relative;overflow:hidden;transform:translateX(110%);opacity:0;transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;pointer-events:auto; }
+        .toast.show { transform:translateX(0);opacity:1; }
+        .toast-success { background:#f0fdf4;border-color:#86efac; } .toast-success .toast-icon{background:#dcfce7;} .toast-success .toast-icon svg{color:#16a34a;} .toast-success .toast-title{color:#14532d;} .toast-success .toast-message{color:#15803d;} .toast-success .toast-progress{background:#22c55e;}
+        .toast-error { background:#fff1f1;border-color:#fca5a5; } .toast-error .toast-icon{background:#fee2e2;} .toast-error .toast-icon svg{color:#dc2626;} .toast-error .toast-title{color:#991b1b;} .toast-error .toast-message{color:#b91c1c;} .toast-error .toast-progress{background:#ef4444;}
+        .toast-icon { width:2.25rem;height:2.25rem;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+        .toast-body { flex:1;min-width:0; } .toast-title { font-size:.875rem;font-weight:600;line-height:1.25rem; } .toast-message { font-size:.8125rem;margin-top:.125rem;line-height:1.4; }
+        .toast-close { flex-shrink:0;width:1.5rem;height:1.5rem;display:flex;align-items:center;justify-content:center;border-radius:.375rem;color:#9ca3af;font-size:1.1rem;cursor:pointer;transition:background .15s,color .15s;background:transparent;border:none;padding:0; }
+        .toast-progress { position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 .75rem .75rem;animation:toastProgressBar linear forwards; }
+        @keyframes toastProgressBar { from{width:100%}to{width:0%} }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 via-red-50 to-gray-100">
+
+    <div id="toast-container"></div>
 
     <main class="w-full max-w-md">
         <div class="bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 p-10">
@@ -46,17 +58,12 @@
                 We will send you a link to reset your password.
             </p>
 
-            {{-- Flash messages --}}
+            {{-- Flash messages via toast --}}
             @if(session('success'))
-                <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg text-sm text-green-700">
-                    {{ session('success') }}
-                </div>
+            <script>document.addEventListener('DOMContentLoaded',function(){showToast(@json(session('success')),'success');});</script>
             @endif
-
             @if(session('error'))
-                <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-sm text-red-700">
-                    {{ session('error') }}
-                </div>
+            <script>document.addEventListener('DOMContentLoaded',function(){showToast(@json(session('error')),'error');});</script>
             @endif
 
             {{-- Validation errors --}}
@@ -123,6 +130,21 @@
 
         </div>
     </main>
+
+    <script>
+    function showToast(message, type, title, duration) {
+        type = type || 'info'; duration = duration || 5000;
+        var icons = { success:'<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>', error:'<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>' };
+        var titles = { success:'Berhasil', error:'Terjadi Kesalahan' };
+        var container = document.getElementById('toast-container');
+        var toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.innerHTML = '<div class="toast-icon">'+(icons[type]||icons.error)+'</div><div class="toast-body"><p class="toast-title">'+(title||titles[type]||'Info')+'</p><p class="toast-message">'+message+'</p></div><button class="toast-close" onclick="this.parentElement.classList.remove(\'show\')">&times;</button><div class="toast-progress" style="animation-duration:'+duration+'ms"></div>';
+        container.appendChild(toast);
+        requestAnimationFrame(function(){requestAnimationFrame(function(){toast.classList.add('show');});});
+        setTimeout(function(){toast.classList.remove('show');setTimeout(function(){if(toast.parentElement)toast.remove();},350);},duration);
+    }
+    </script>
 
 </body>
 </html>

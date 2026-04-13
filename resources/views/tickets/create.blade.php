@@ -230,19 +230,6 @@
     </div>
 </div>
 
-{{-- =================== ALERT MODAL =================== --}}
-<div id="alertModal" class="hidden fixed inset-0 bg-black/50 z-60 items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-        <div id="alertIcon" class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"></div>
-        <h3 id="alertTitle" class="text-base font-semibold text-gray-900 mb-2"></h3>
-        <p id="alertMessage" class="text-sm text-gray-500 mb-5"></p>
-        <button onclick="closeAlertModal()"
-            class="w-full py-2.5 bg-red-800 hover:bg-red-900 text-white text-sm font-semibold rounded-xl transition-colors">
-            OK
-        </button>
-    </div>
-</div>
-
 {{-- =================== CONFIRM MODAL =================== --}}
 <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-60 items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
@@ -272,54 +259,6 @@
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const CSRF_TOKEN = '{{ csrf_token() }}';
-
-// ===== Alert Modal =====
-const _alertConfigs = {
-    success: {
-        bg: 'bg-green-100',
-        icon: `<svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`,
-        title: 'Success',
-    },
-    error: {
-        bg: 'bg-red-100',
-        icon: `<svg class="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>`,
-        title: 'An Error Occurred',
-    },
-    info: {
-        bg: 'bg-blue-100',
-        icon: `<svg class="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
-        title: 'Information',
-    },
-    warning: {
-        bg: 'bg-amber-100',
-        icon: `<svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`,
-        title: 'Warning',
-    },
-};
-let _alertCallback = null;
-
-function showAlert(message, type = 'info', title = null, onClose = null) {
-    const cfg = _alertConfigs[type] || _alertConfigs.info;
-    _alertCallback = onClose;
-    const iconEl = document.getElementById('alertIcon');
-    iconEl.className = `w-14 h-14 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-4`;
-    iconEl.innerHTML = cfg.icon;
-    document.getElementById('alertTitle').textContent   = title || cfg.title;
-    document.getElementById('alertMessage').textContent = message;
-    const modal = document.getElementById('alertModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-}
-function closeAlertModal() {
-    const modal = document.getElementById('alertModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-    if (typeof _alertCallback === 'function') {
-        const cb = _alertCallback;
-        _alertCallback = null;
-        cb();
-    }
-}
 
 // ===== Confirm Modal =====
 let _confirmResolve = null;
@@ -351,12 +290,48 @@ async function discardTicket() {
     if (ok) window.location.href = '{{ route("tickets.index") }}';
 }
 
+// ===== Field Error Helpers =====
+const FIELD_ERROR_CLASS = ['border-red-500', 'ring-2', 'ring-red-200'];
+const FIELD_OK_CLASS    = ['border-gray-300'];
+
+function setFieldError(el, hasError) {
+    if (!el) return;
+    if (hasError) {
+        el.classList.remove(...FIELD_OK_CLASS);
+        el.classList.add(...FIELD_ERROR_CLASS);
+    } else {
+        el.classList.remove(...FIELD_ERROR_CLASS);
+        el.classList.add(...FIELD_OK_CLASS);
+    }
+}
+
+function setQuillError(hasError) {
+    const wrapper = document.getElementById('quillWrapper');
+    if (hasError) {
+        wrapper.style.boxShadow = '0 0 0 2px #fca5a5';
+        wrapper.style.borderColor = '#ef4444';
+    } else {
+        wrapper.style.boxShadow = '';
+        wrapper.style.borderColor = '';
+    }
+}
+
+function clearAllFieldErrors() {
+    setFieldError(document.getElementById('subject'), false);
+    setQuillError(false);
+    document.querySelectorAll('#ccRows input[type="email"]').forEach(i => setFieldError(i, false));
+}
+
 // ===== CC Rows =====
+const MAX_CC = 10;
+const MAX_FILE_SIZE_MB = 20;
+const MAX_FILES = 10;
 let ccRowCount = 0;
+
 function addCcRow() {
-    if (ccRowCount >= 10) {
-        document.getElementById('ccError').textContent = 'Maximum 10 CC addresses.';
-        document.getElementById('ccError').classList.remove('hidden');
+    const activeCcCount = document.querySelectorAll('#ccRows input[type="email"]').length;
+    if (activeCcCount >= MAX_CC) {
+        showToast(`You can add a maximum of ${MAX_CC} CC recipients per ticket.`, 'warning', 'CC Limit Reached');
         return;
     }
     document.getElementById('ccError').classList.add('hidden');
@@ -398,25 +373,52 @@ const quill = new Quill('#detailsEditor', {
     },
 });
 
-// Focus ring on quill wrapper
 quill.on('selection-change', (range) => {
     const wrapper = document.getElementById('quillWrapper');
     if (range) {
         wrapper.classList.add('focused');
+        setQuillError(false);
     } else {
         wrapper.classList.remove('focused');
     }
+});
+
+// Clear subject error on input
+document.getElementById('subject').addEventListener('input', function () {
+    setFieldError(this, false);
 });
 
 // ===== Attachments =====
 const selectedFiles = [];
 
 document.getElementById('attachInput').addEventListener('change', function () {
-    Array.from(this.files).forEach(file => {
-        if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
-            selectedFiles.push(file);
+    const incoming = Array.from(this.files);
+
+    for (const file of incoming) {
+        // Duplicate check
+        if (selectedFiles.find(f => f.name === file.name && f.size === file.size)) continue;
+
+        // Per-file size limit: 20 MB
+        if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+            showToast(
+                `"${file.name}" exceeds the ${MAX_FILE_SIZE_MB} MB file size limit and was not added.`,
+                'error', 'File Too Large'
+            );
+            continue;
         }
-    });
+
+        // Total file count limit
+        if (selectedFiles.length >= MAX_FILES) {
+            showToast(
+                `You can attach a maximum of ${MAX_FILES} files per ticket. Additional files were skipped.`,
+                'warning', 'Attachment Limit Reached'
+            );
+            break;
+        }
+
+        selectedFiles.push(file);
+    }
+
     this.value = '';
     renderAttachPreview();
 });
@@ -454,31 +456,142 @@ function escH(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ===== Form Submit =====
-document.getElementById('ticketForm').addEventListener('submit', async function (e) {
-    e.preventDefault();
-
+// ===== Client-Side Validation =====
+function validateForm() {
+    clearAllFieldErrors();
     const subject  = document.getElementById('subject').value.trim();
-    const bodyHtml = quill.root.innerHTML.trim();
     const bodyText = quill.getText().trim();
-    const priority = document.querySelector('input[name="ticket_priority"]:checked')?.value || 'Medium';
 
-    if (!subject)   { showAlert('Subject cannot be empty.', 'warning'); return; }
-    if (!bodyText)  { showAlert('Details cannot be empty.', 'warning'); return; }
+    if (!subject) {
+        setFieldError(document.getElementById('subject'), true);
+        showToast('Please provide a subject for your ticket.', 'warning', 'Subject Required');
+        document.getElementById('subject').focus();
+        return false;
+    }
 
-    // Validate CC inputs
+    if (subject.length < 5) {
+        setFieldError(document.getElementById('subject'), true);
+        showToast('Subject must be at least 5 characters long.', 'warning', 'Subject Too Short');
+        document.getElementById('subject').focus();
+        return false;
+    }
+
+    if (subject.length > 5000) {
+        setFieldError(document.getElementById('subject'), true);
+        showToast('Subject cannot exceed 5,000 characters.', 'warning', 'Subject Too Long');
+        document.getElementById('subject').focus();
+        return false;
+    }
+
+    if (!bodyText || bodyText.length < 10) {
+        setQuillError(true);
+        showToast('Please describe your issue in detail (at least 10 characters).', 'warning', 'Details Required');
+        quill.focus();
+        return false;
+    }
+
+    // Validate CC emails
     const ccInputEls = document.querySelectorAll('#ccRows input[type="email"]');
     const ccEmails   = [];
     for (const inp of ccInputEls) {
         const val = inp.value.trim();
         if (!val) continue;
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+            setFieldError(inp, true);
             inp.focus();
-            showAlert(`"${val}" is not a valid email address.`, 'warning');
-            return;
+            showToast(
+                `"${escH(val)}" is not a valid email address. Please enter a properly formatted email (e.g. name@example.com).`,
+                'warning', 'Invalid CC Email'
+            );
+            return false;
         }
-        ccEmails.push(val);
+        // Check for duplicate CC
+        if (ccEmails.includes(val.toLowerCase())) {
+            setFieldError(inp, true);
+            showToast(`Duplicate CC address: "${escH(val)}". Each recipient must be unique.`, 'warning', 'Duplicate CC');
+            return false;
+        }
+        ccEmails.push(val.toLowerCase());
     }
+
+    return { subject, bodyText, bodyHtml: quill.root.innerHTML.trim(), ccEmails };
+}
+
+// ===== Server Error Parser =====
+function parseServerError(res, data) {
+    // 401 — session expired
+    if (res.status === 401) {
+        showToast('Your session has expired. Please log in again to continue.', 'error', 'Session Expired');
+        setTimeout(() => { window.location.href = '{{ route("login") }}'; }, 2500);
+        return;
+    }
+
+    // 403 — forbidden
+    if (res.status === 403) {
+        showToast('You do not have permission to submit tickets. Please contact your administrator.', 'error', 'Access Denied');
+        return;
+    }
+
+    // 422 — validation errors from server
+    if (res.status === 422 && data?.errors) {
+        const fieldMessages = {
+            description:     'Subject field is required and must not exceed 5,000 characters.',
+            body:            'Please provide a description of your issue.',
+            ticket_priority: 'Invalid priority selected. Choose from Very High, High, Medium, or Low.',
+            'cc_emails':     'One or more CC email addresses are invalid.',
+            'cc_emails.*':   'One or more CC email addresses are invalid.',
+            'attachments':   'One or more attachments are invalid.',
+            'attachments.*': 'Each attachment must not exceed 20 MB and must be a supported file type.',
+        };
+        const errors = data.errors;
+        const firstKey = Object.keys(errors)[0];
+        const friendlyMsg = fieldMessages[firstKey] || errors[firstKey]?.[0] || 'Please review your input and try again.';
+        showToast(friendlyMsg, 'error', 'Validation Error');
+        return;
+    }
+
+    // 429 — rate limited
+    if (res.status === 429) {
+        showToast('Too many requests. Please wait a moment before submitting again.', 'warning', 'Rate Limit Reached');
+        return;
+    }
+
+    // 500 / other server errors
+    if (res.status >= 500) {
+        showToast(
+            'An internal server error occurred while processing your request. Please try again in a few moments or contact support if the issue persists.',
+            'error', 'Server Error'
+        );
+        return;
+    }
+
+    // Generic server message
+    const msg = data?.message;
+    if (msg) {
+        // Map common server messages to user-friendly text
+        if (msg.toLowerCase().includes('email')) {
+            showToast('Failed to send the notification email. Your ticket was saved but email delivery failed. Please contact support.', 'error', 'Email Delivery Failed');
+        } else if (msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('unauthenticated')) {
+            showToast('Authentication failed. Please log in and try again.', 'error', 'Unauthorized');
+            setTimeout(() => { window.location.href = '{{ route("login") }}'; }, 2500);
+        } else {
+            showToast(msg, 'error', 'Submission Failed');
+        }
+        return;
+    }
+
+    showToast('An unexpected error occurred. Please try again or contact support if the issue persists.', 'error', 'Submission Failed');
+}
+
+// ===== Form Submit =====
+document.getElementById('ticketForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const validated = validateForm();
+    if (!validated) return;
+
+    const { subject, bodyText, bodyHtml, ccEmails } = validated;
+    const priority = document.querySelector('input[name="ticket_priority"]:checked')?.value || 'Medium';
 
     setLoading(true);
 
@@ -496,35 +609,47 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
         ccEmails.forEach(email => fd.append('cc_emails[]', email));
         selectedFiles.forEach(file => fd.append('attachments[]', file));
 
-        const res  = await fetch('{{ route("tickets.store") }}', {
-            method:  'POST',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body:    fd,
-        });
-
-        const data = await res.json();
+        let res, data;
+        try {
+            res  = await fetch('{{ route("tickets.store") }}', {
+                method:  'POST',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body:    fd,
+            });
+            data = await res.json();
+        } catch (networkErr) {
+            console.error('Network error:', networkErr);
+            showToast(
+                'Unable to reach the server. Please check your internet connection and try again.',
+                'error', 'Connection Failed'
+            );
+            setLoading(false);
+            return;
+        }
 
         if (data.success) {
-            let msg, title;
-            if (data.staging) {
-                title = 'Ticket Submitted';
-                msg   = data.email_sent
-                    ? 'Your ticket is awaiting admin validation. A notification email has been sent to your inbox.'
-                    : 'Your ticket is awaiting admin validation.';
-            } else {
-                title = 'Ticket Created';
-                msg   = 'Ticket created successfully.';
-            }
-            showAlert(msg, 'success', title, () => {
+            // Success — show toast then redirect
+            const isStaging = !!data.staging;
+            const title = isStaging ? 'Ticket Submitted Successfully' : 'Ticket Created Successfully';
+            const msg   = isStaging
+                ? 'Your ticket has been submitted and is pending admin review. A confirmation email has been sent to your registered email address.'
+                : 'Your support ticket has been created and assigned to our team. You will be notified once it is reviewed.';
+
+            showToast(msg, 'success', title, 4000, () => {
                 window.location.href = '{{ route("tickets.index") }}';
             });
+            // Button stays disabled — user is being redirected
         } else {
-            showAlert(data.message || 'Failed to submit ticket. Please try again.', 'error');
+            parseServerError(res, data);
             setLoading(false);
         }
-    } catch (err) {
-        console.error(err);
-        showAlert('A network error occurred. Please check your connection and try again.', 'error');
+
+    } catch (unexpectedErr) {
+        console.error('Unexpected error:', unexpectedErr);
+        showToast(
+            'An unexpected client-side error occurred. Please refresh the page and try again.',
+            'error', 'Unexpected Error'
+        );
         setLoading(false);
     }
 });

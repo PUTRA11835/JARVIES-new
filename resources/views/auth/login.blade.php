@@ -44,10 +44,46 @@
             border-color: #991b1b;
             box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.1);
         }
+
+        /* Toast */
+        #toast-container { position:fixed;top:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.75rem;max-width:22rem;width:100%;pointer-events:none; }
+        .toast { display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;border-radius:.75rem;border:1.5px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,.08);position:relative;overflow:hidden;transform:translateX(110%);opacity:0;transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease;pointer-events:auto; }
+        .toast.show { transform:translateX(0);opacity:1; }
+        .toast-success { background:#f0fdf4;border-color:#86efac; }
+        .toast-success .toast-icon { background:#dcfce7; }
+        .toast-success .toast-icon svg { color:#16a34a; }
+        .toast-success .toast-title { color:#14532d; }
+        .toast-success .toast-message { color:#15803d; }
+        .toast-success .toast-progress { background:#22c55e; }
+        .toast-error { background:#fff1f1;border-color:#fca5a5; }
+        .toast-error .toast-icon { background:#fee2e2; }
+        .toast-error .toast-icon svg { color:#dc2626; }
+        .toast-error .toast-title { color:#991b1b; }
+        .toast-error .toast-message { color:#b91c1c; }
+        .toast-error .toast-progress { background:#ef4444; }
+        .toast-warning { background:#fffbeb;border-color:#fcd34d; }
+        .toast-warning .toast-icon { background:#fef9c3; }
+        .toast-warning .toast-icon svg { color:#d97706; }
+        .toast-warning .toast-title { color:#78350f; }
+        .toast-warning .toast-message { color:#92400e; }
+        .toast-warning .toast-progress { background:#f59e0b; }
+        .toast-icon { width:2.25rem;height:2.25rem;border-radius:.5rem;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+        .toast-body { flex:1;min-width:0; }
+        .toast-title { font-size:.875rem;font-weight:600;line-height:1.25rem; }
+        .toast-message { font-size:.8125rem;margin-top:.125rem;line-height:1.4; }
+        .toast-close { flex-shrink:0;width:1.5rem;height:1.5rem;display:flex;align-items:center;justify-content:center;border-radius:.375rem;color:#9ca3af;font-size:1.1rem;cursor:pointer;transition:background .15s,color .15s;background:transparent;border:none;padding:0; }
+        .toast-close:hover { background:rgba(0,0,0,.06);color:#374151; }
+        .toast-progress { position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 .75rem .75rem;animation:toastProgressBar linear forwards; }
+        @keyframes toastProgressBar { from{width:100%}to{width:0%} }
+        /* Field error state */
+        .input-field.field-error { border-color:#ef4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,0.15) !important; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 via-red-50 to-gray-100">
-    
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
     <!-- Background Pattern -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none opacity-5">
         <div class="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-red-600 to-red-900 rounded-full blur-3xl"></div>
@@ -133,42 +169,15 @@
                         <p class="text-gray-600">Sign in to Jarvies Portal</p>
                     </div>
 
-                    <!-- Flash Messages -->
+                    {{-- Flash messages via toast (rendered after JS loads) --}}
                     @if(session('success'))
-                    <div class="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                        <div class="flex items-start">
-                            <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                            <p class="text-sm text-green-700">{{ session('success') }}</p>
-                        </div>
-                    </div>
+                    <script>document.addEventListener('DOMContentLoaded',function(){showToast(@json(session('success')),'success','Sign Out',6000);});</script>
                     @endif
-
                     @if(session('error'))
-                    <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                        <div class="flex items-start">
-                            <svg class="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            <p class="text-sm text-red-700">{{ session('error') }}</p>
-                        </div>
-                    </div>
+                    <script>document.addEventListener('DOMContentLoaded',function(){showToast(@json(session('error')),'error','Authentication Error',7000);});</script>
                     @endif
-
                     @if($errors->any())
-                    <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                        <div class="flex items-start">
-                            <svg class="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                            <div>
-                                @foreach($errors->all() as $error)
-                                    <p class="text-sm text-red-700">{{ $error }}</p>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
+                    <script>document.addEventListener('DOMContentLoaded',function(){showToast(@json($errors->first()),'error','Validation Error',7000);});</script>
                     @endif
 
                     <!-- Login Form -->
@@ -192,7 +201,7 @@
                                     name="email"
                                     value="{{ old('email') }}"
                                     placeholder="Enter your identification"
-                                    class="input-field w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white @error('email') border-red-500 @enderror"
+                                    class="input-field w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white"
                                     required
                                     autofocus
                                     autocomplete="username"
@@ -216,7 +225,7 @@
                                     id="password"
                                     name="password"
                                     placeholder="Enter your password"
-                                    class="input-field w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white @error('password') border-red-500 @enderror"
+                                    class="input-field w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white"
                                     required
                                     autocomplete="current-password"
                                 />
@@ -268,99 +277,247 @@
     </main>
 
     <script>
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const eyeIcon = document.getElementById('eyeIcon');
-            const eyeOffIcon = document.getElementById('eyeOffIcon');
+        // ── Toast System ─────────────────────────────────────────────────────────
+        var _icons = {
+            success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>',
+            error:   '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>',
+            warning: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+        };
+        var _defaultTitles = { success: 'Success', error: 'Error', warning: 'Warning' };
 
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                eyeIcon.classList.add('hidden');
-                eyeOffIcon.classList.remove('hidden');
+        function showToast(message, type, title, duration, onClose) {
+            type     = type     || 'error';
+            duration = duration || 6000;
+            var icon       = _icons[type]         || _icons.error;
+            var toastTitle = title                 || _defaultTitles[type] || 'Notice';
+            var container  = document.getElementById('toast-container');
+            var toast      = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.innerHTML =
+                '<div class="toast-icon">' + icon + '</div>' +
+                '<div class="toast-body">' +
+                    '<p class="toast-title">' + toastTitle + '</p>' +
+                    '<p class="toast-message">' + message + '</p>' +
+                '</div>' +
+                '<button class="toast-close" onclick="dismissToast(this.parentElement)">&times;</button>' +
+                '<div class="toast-progress" style="animation-duration:' + duration + 'ms"></div>';
+            container.appendChild(toast);
+            requestAnimationFrame(function() { requestAnimationFrame(function() { toast.classList.add('show'); }); });
+            toast._timer = setTimeout(function() { dismissToast(toast, onClose); }, duration);
+            toast._onClose = onClose || null;
+        }
+
+        function dismissToast(toast, onClose) {
+            if (!toast || !toast.parentElement) return;
+            clearTimeout(toast._timer);
+            toast.classList.remove('show');
+            var cb = onClose || toast._onClose;
+            setTimeout(function() {
+                if (toast.parentElement) toast.remove();
+                if (typeof cb === 'function') cb();
+            }, 350);
+        }
+
+        // ── Field Helpers ─────────────────────────────────────────────────────────
+        function setFieldError(id, hasError) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (hasError) {
+                el.classList.add('field-error');
             } else {
-                passwordInput.type = 'password';
-                eyeIcon.classList.remove('hidden');
-                eyeOffIcon.classList.add('hidden');
+                el.classList.remove('field-error');
             }
         }
 
-        // Enter key navigation
+        function clearFieldErrors() {
+            setFieldError('email', false);
+            setFieldError('password', false);
+        }
+
+        // Clear errors on typing
+        document.getElementById('email')?.addEventListener('input', function() { setFieldError('email', false); });
+        document.getElementById('password')?.addEventListener('input', function() { setFieldError('password', false); });
+
+        // ── Toggle Password ───────────────────────────────────────────────────────
+        function togglePassword() {
+            var input     = document.getElementById('password');
+            var eyeOn     = document.getElementById('eyeIcon');
+            var eyeOff    = document.getElementById('eyeOffIcon');
+            var isHidden  = input.type === 'password';
+            input.type    = isHidden ? 'text' : 'password';
+            eyeOn.classList.toggle('hidden', isHidden);
+            eyeOff.classList.toggle('hidden', !isHidden);
+        }
+
+        // Enter key: email → password
         document.getElementById('email')?.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('password').focus();
-            }
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('password').focus(); }
         });
 
-        // AJAX form submission
+        // ── Client-Side Validation ────────────────────────────────────────────────
+        function validateLoginForm(email, password) {
+            clearFieldErrors();
+
+            if (!email) {
+                setFieldError('email', true);
+                showToast('Please enter your email address, ECI number, or phone number to continue.', 'warning', 'Identifier Required');
+                document.getElementById('email').focus();
+                return false;
+            }
+
+            if (!password) {
+                setFieldError('password', true);
+                showToast('Please enter your password to continue.', 'warning', 'Password Required');
+                document.getElementById('password').focus();
+                return false;
+            }
+
+            if (password.length < 4) {
+                setFieldError('password', true);
+                showToast('Password must be at least 4 characters. Please check your input and try again.', 'warning', 'Password Too Short');
+                document.getElementById('password').focus();
+                return false;
+            }
+
+            return true;
+        }
+
+        // ── Server Error Parser ───────────────────────────────────────────────────
+        function parseLoginError(status, data) {
+            // 401 — wrong credentials (most common)
+            if (status === 401) {
+                setFieldError('email', true);
+                setFieldError('password', true);
+                var msg = data?.message || '';
+                if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no account')) {
+                    showToast('Check your email, ECI, or phone number and try again.', 'error', 'Account Not Found');
+                } else if (msg.toLowerCase().includes('password') || msg.toLowerCase().includes('incorrect') || msg.toLowerCase().includes('invalid')) {
+                    showToast('Username or Password Incorrect', 'error', 'Login Failed');
+                } else if (msg.toLowerCase().includes('inactive') || msg.toLowerCase().includes('disabled') || msg.toLowerCase().includes('suspended')) {
+                    setFieldError('email', false);
+                    setFieldError('password', false);
+                    showToast('Your account has been deactivated or suspended. Please contact the RPMO Team for assistance.', 'error', 'Account Inactive');
+                } else {
+                    showToast('The credentials you entered do not match our records. Please verify your identifier and password, then try again.', 'error', 'Authentication Failed');
+                }
+                return;
+            }
+
+            // 403 — account exists but access denied
+            if (status === 403) {
+                showToast('Your account does not have permission to access this portal. Please contact the RPMO Team to request access.', 'error', 'Access Denied');
+                return;
+            }
+
+            // 422 — validation failed server-side
+            if (status === 422) {
+                var errors = data?.errors || {};
+                if (errors.email) {
+                    setFieldError('email', true);
+                    showToast('The identifier field is required and must be a valid email, ECI number, or phone number.', 'warning', 'Invalid Identifier');
+                } else if (errors.password) {
+                    setFieldError('password', true);
+                    showToast('The password field is required and must meet the minimum length requirement.', 'warning', 'Invalid Password');
+                } else {
+                    showToast('Some fields contain invalid data. Please review your input and try again.', 'warning', 'Validation Error');
+                }
+                return;
+            }
+
+            // 429 — too many attempts
+            if (status === 429) {
+                showToast('Too many failed login attempts. Your account has been temporarily locked for security. Please wait a few minutes before trying again.', 'warning', 'Too Many Attempts');
+                return;
+            }
+
+            // 500+ — server errors
+            if (status >= 500) {
+                showToast('The server encountered an unexpected error while processing your request. Please try again in a few moments. If the problem persists, contact support.', 'error', 'Server Error');
+                return;
+            }
+
+            // Generic fallback with server message
+            var serverMsg = data?.message;
+            if (serverMsg) {
+                showToast(serverMsg, 'error', 'Login Failed');
+            } else {
+                showToast('An unexpected error occurred. Please try again or contact the RPMO Team if the issue continues.', 'error', 'Login Failed');
+            }
+        }
+
+        // ── Form Submit ───────────────────────────────────────────────────────────
         document.querySelector('form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            const form = e.target;
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalHTML = submitBtn.innerHTML;
+            var form        = e.target;
+            var submitBtn   = form.querySelector('button[type="submit"]');
+            var email       = document.getElementById('email').value.trim();
+            var password    = document.getElementById('password').value;
+            var originalHTML = submitBtn.innerHTML;
 
+            if (!validateLoginForm(email, password)) return;
+
+            // Set loading state
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> Signing in...';
-
-            removeAlert();
+            submitBtn.innerHTML =
+                '<svg class="animate-spin h-5 w-5 mr-2 inline" fill="none" viewBox="0 0 24 24">' +
+                '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
+                '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> Signing in...';
 
             try {
-                const formData = new URLSearchParams(new FormData(form));
+                var formData = new URLSearchParams(new FormData(form));
+                var response, data;
 
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: formData,
-                });
+                try {
+                    response = await fetch(form.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData,
+                    });
+                    data = await response.json();
+                } catch (networkErr) {
+                    showToast(
+                        'Unable to connect to the server. Please check your internet connection and try again.',
+                        'error', 'Connection Failed'
+                    );
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHTML;
+                    return;
+                }
 
-                const data = await response.json();
-
+                // Password change required
                 if (data.success && data.require_password_change) {
-                    window.location.href = '/password/check-email?email=' + encodeURIComponent(data.email ?? '') + '&type=setup';
+                    showToast('Your account requires a password setup before you can sign in.', 'warning', 'Password Setup Required', 3000, function() {
+                        window.location.href = '/password/check-email?email=' + encodeURIComponent(data.email ?? '') + '&type=setup';
+                    });
                     return;
                 }
 
+                // Successful login
                 if (data.success) {
-                    window.location.href = '/dashboard';
-                    return;
+                    showToast('Login successful. Redirecting to your dashboard...', 'success', 'Welcome Back!', 2500, function() {
+                        window.location.href = '/dashboard';
+                    });
+                    return; // keep button disabled — redirecting
                 }
 
-                // Tampilkan pesan error dari server
-                showAlert(data.message || 'Login failed. Please check your credentials and try again.');
+                // Failed — parse server error and re-enable button
+                parseLoginError(response.status, data);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHTML;
 
-            } catch (err) {
-                showAlert('A network error occurred. Please try again.');
-            } finally {
+            } catch (unexpectedErr) {
+                console.error('Unexpected error:', unexpectedErr);
+                showToast('An unexpected client-side error occurred. Please refresh the page and try again.', 'error', 'Unexpected Error');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalHTML;
             }
         });
-
-        function showAlert(message) {
-            removeAlert();
-            const alertDiv = document.createElement('div');
-            alertDiv.id = 'js-alert';
-            alertDiv.className = 'mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg';
-            alertDiv.innerHTML = `
-                <div class="flex items-start">
-                    <svg class="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                    </svg>
-                    <p class="text-sm text-red-700">${message}</p>
-                </div>`;
-            document.querySelector('form').insertAdjacentElement('beforebegin', alertDiv);
-        }
-
-        function removeAlert() {
-            const existing = document.getElementById('js-alert');
-            if (existing) existing.remove();
-        }
     </script>
 
 </body>

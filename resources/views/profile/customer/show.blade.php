@@ -180,11 +180,6 @@
                 <div class="max-w-md">
                     <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Change Password</h3>
 
-                    @if(session('error'))
-                    <div class="mb-4 p-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">
-                        {{ session('error') }}
-                    </div>
-                    @endif
 
                     <p class="text-sm text-gray-600 mb-6">
                         To change your password, we will send a secure reset link to your registered email address.
@@ -304,6 +299,10 @@
         // Auto-switch to Change Password tab if there is a session error from sendResetLink
         @if(session('error'))
         switchSection('change-password');
+        showToast(@json(session('error')), 'error');
+        @endif
+        @if(session('success'))
+        showToast(@json(session('success')), 'success');
         @endif
     });
 
