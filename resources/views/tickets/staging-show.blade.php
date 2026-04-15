@@ -92,7 +92,7 @@
             <div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                 <span class="font-medium text-gray-700">{{ $customerName }}</span>
                 <span class="text-gray-300">|</span>
-                <span>{{ $staging->created_at->format('M d, Y h:i A') }}</span>
+                <span>{{ $staging->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB</span>
                 <span class="text-gray-300">|</span>
                 <span class="inline-flex items-center gap-1 text-amber-600 font-medium">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -258,7 +258,7 @@
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                         <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                            {{ $staging->created_at->format('M d, Y h:i A') }}
+                            {{ $staging->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB
                         </p>
                     </div>
                 </div>

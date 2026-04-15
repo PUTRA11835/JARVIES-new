@@ -33,10 +33,11 @@ class Ticket extends Model
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'man_days' => 'decimal:2',
-        'wait_close' => 'decimal:2',
+        'start_date'      => 'date',
+        'end_date'        => 'date',
+        'man_days'        => 'decimal:2',
+        'wait_close'      => 'decimal:2',
+        'last_message_at' => 'datetime',
     ];
 
     // Relasi ke Customer

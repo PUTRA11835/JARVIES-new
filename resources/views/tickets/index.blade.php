@@ -523,7 +523,7 @@ function createTicketCard(ticket) {
     const customerName = ticket.customer?.customer_name || ticket.customer?.company_name || 'Unknown';
     const agentName = ticket.employee?.employee_name || 'Unassigned';
     const lastActivityDate = ticket.last_message_at || ticket.created_at;
-    const createdDate = formatTimeAgo(new Date(lastActivityDate));
+    const createdDate = formatTimeAgo(lastActivityDate);
 
     const priorityColors = {
         'Low': 'bg-green-500',
@@ -587,7 +587,7 @@ function createTicketCard(ticket) {
                     <div class="flex items-center gap-3 text-xs text-gray-500">
                         <span class="font-medium text-gray-700">${customerName}</span>
                         <span>•</span>
-                        <span>${createdDate}</span>
+                        <span title="${formatDateTimeWIB(lastActivityDate)}">${createdDate}</span>
                     </div>
                 </div>
 
@@ -651,9 +651,7 @@ async function viewTicketDetail(ticketId) {
     document.getElementById('detailType').value = ticket.ticket_type || '—';
     document.getElementById('detailCustomer').value = customerName;
     document.getElementById('detailAgent').value = employeeName;
-    document.getElementById('detailCreated').value = new Date(ticket.created_at).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric'
-    });
+    document.getElementById('detailCreated').value = formatDateWIB(ticket.created_at);
 
     // Team Members
     const membersEl = document.getElementById('detailMembers');
@@ -710,7 +708,7 @@ function renderMessage(msg) {
     const isCustomer  = msg.sender_type === 'customer';
     const isSystem    = msg.sender_type === 'system';
     const initials    = (msg.sender_name || '?').substring(0, 1).toUpperCase();
-    const timeAgo     = formatTimeAgo(new Date(msg.created_at));
+    const timeAgo     = formatTimeAgo(msg.created_at);
     const isEmail     = msg.channel === 'email';
 
     const channelBadge = isEmail
@@ -767,7 +765,7 @@ function renderMessage(msg) {
                 <div class="flex items-center gap-2 mb-1 ${isCustomer ? 'justify-end' : ''}">
                     <span class="font-semibold text-sm text-gray-900">${escapeHtml(msg.sender_name || 'Unknown')}</span>
                     ${channelBadge}
-                    <span class="text-xs text-gray-400">${timeAgo}</span>
+                    <span class="text-xs text-gray-400" title="${formatDateTimeWIB(msg.created_at)}">${timeAgo}</span>
                 </div>
                 <div class="${isCustomer ? 'bg-red-50' : 'bg-gray-100'} rounded-xl px-4 py-3 max-w-full overflow-hidden">
                     ${messageBody}
@@ -944,19 +942,47 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// Format timestamp ke WIB — selalu konsisten di semua browser
+// Input: Date object atau ISO string dari API (e.g. "2026-04-15T08:23:46+07:00")
 function formatTimeAgo(date) {
+    if (!(date instanceof Date)) date = new Date(date);
     const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
+    const diffMs   = now - date;
+    const diffMins  = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'just now';
+    const diffDays  = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1)  return 'just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (diffDays < 7)  return `${diffDays}d ago`;
+
+    // Lebih dari 7 hari — tampilkan tanggal lengkap dalam WIB
+    return date.toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: 'numeric', month: 'short', year: 'numeric'
+    });
+}
+
+// Format tanggal + jam WIB — dipakai untuk tooltip atau detail
+function formatDateTimeWIB(isoString) {
+    if (!isoString) return '—';
+    const date = new Date(isoString);
+    return date.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    }).replace('.', ':') + ' WIB';
+}
+
+// Format tanggal saja (tanpa jam) dalam WIB
+function formatDateWIB(isoString) {
+    if (!isoString) return '—';
+    const date = new Date(isoString);
+    return date.toLocaleDateString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: 'numeric', month: 'short', year: 'numeric'
+    });
 }
 
 </script>

@@ -241,8 +241,8 @@ class TicketController extends Controller
                     'confirmation'               => null,
                     'last_message_at'            => null,
                     'channel'                    => $s->channel ?? 'web',
-                    'created_at'                 => $s->created_at,
-                    'updated_at'                 => $s->updated_at,
+                    'created_at'                 => $s->created_at?->toIso8601String(),
+                    'updated_at'                 => $s->updated_at?->toIso8601String(),
                 ]);
 
             } else {
@@ -305,10 +305,10 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'last_message_at' => $ticket->last_message_at,
+                    'last_message_at' => $ticket->last_message_at?->toIso8601String(),
                     'channel' => $ticket->channel,
-                    'created_at' => $ticket->created_at,
-                    'updated_at' => $ticket->updated_at,
+                    'created_at' => $ticket->created_at?->toIso8601String(),
+                    'updated_at' => $ticket->updated_at?->toIso8601String(),
                 ];
             });
 
@@ -882,8 +882,8 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'created_at' => $ticket->created_at,
-                    'updated_at' => $ticket->updated_at,
+                    'created_at' => $ticket->created_at?->toIso8601String(),
+                    'updated_at' => $ticket->updated_at?->toIso8601String(),
                 ];
             });
 
@@ -1452,7 +1452,7 @@ class TicketController extends Controller
                             'attachment_type' => $a->attachment_type,
                             'url'             => $a->url ?? $a->link_url,
                         ])->values(),
-                    'created_at'   => $msg->created_at,
+                    'created_at'   => $msg->created_at?->toIso8601String(),
                 ]);
 
             // Tandai semua pesan dari agent sebagai sudah dibaca oleh customer

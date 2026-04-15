@@ -182,7 +182,7 @@
             <div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                 <span class="font-medium text-gray-700">{{ $customerName }}</span>
                 <span class="text-gray-300">|</span>
-                <span>{{ $ticket->created_at->format('M d, Y h:i A') }}</span>
+                <span>{{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB</span>
                 @if($agentName !== 'Unassigned')
                 <span class="text-gray-300">|</span>
                 <span>Agent: <span class="font-medium">{{ $agentName }}</span></span>
@@ -336,7 +336,7 @@
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Start Date</label>
                         <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                            {{ $ticket->start_date ? \Carbon\Carbon::parse($ticket->start_date)->format('M d, Y') : '—' }}
+                            {{ $ticket->start_date ? \Carbon\Carbon::parse($ticket->start_date)->format('d M Y') : '—' }}
                         </p>
                     </div>
 
@@ -344,7 +344,7 @@
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Due Date</label>
                         <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                            {{ $ticket->end_date ? \Carbon\Carbon::parse($ticket->end_date)->format('M d, Y') : '—' }}
+                            {{ $ticket->end_date ? \Carbon\Carbon::parse($ticket->end_date)->format('d M Y') : '—' }}
                         </p>
                     </div>
 
@@ -352,7 +352,7 @@
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Created</label>
                         <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                            {{ $ticket->created_at->format('M d, Y h:i A') }}
+                            {{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB
                         </p>
                     </div>
                 </div>
@@ -921,7 +921,7 @@ function formatTimeAgo(date) {
     if (m < 60) return m + 'm ago';
     if (h < 24) return h + 'h ago';
     if (d < 7)  return d + 'd ago';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short' });
 }
 
 function escHtml(str) {
