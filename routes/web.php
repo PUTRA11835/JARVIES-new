@@ -5,6 +5,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerApiController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ProfileController;
@@ -80,6 +81,11 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/tickets', [TicketController::class, 'myTickets'])->name('tickets');
         Route::get('/tickets/{id}', [TicketController::class, 'showMyTicket'])->name('tickets.show')->whereNumber('id');
     });
+
+    // ==================== SETTINGS ====================
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
+    Route::post('/settings/preferences', [SettingsController::class, 'updatePreferences'])->name('settings.preferences');
+    Route::post('/settings/reset', [SettingsController::class, 'resetPreferences'])->name('settings.reset');
 
     // ==================== PROFILE ====================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile');

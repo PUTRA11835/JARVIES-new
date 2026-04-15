@@ -42,9 +42,10 @@ Route::middleware('api.auth')->group(function () {
 
     // ── Tiket ─────────────────────────────────────────────────
     Route::prefix('tickets')->group(function () {
-        Route::get('/',       [TicketController::class, 'index']);   // List tiket saya
-        Route::post('/',      [TicketController::class, 'store']);   // Buat tiket baru (→ staging)
-        Route::get('staging', [TicketController::class, 'staging']); // List staging tiket
+        Route::get('/',                  [TicketController::class, 'index']);           // List tiket saya
+        Route::post('/',                 [TicketController::class, 'store']);           // Buat tiket baru (→ staging, tanpa email)
+        Route::post('submit-with-email', [TicketController::class, 'storeWithEmail']); // Buat tiket + kirim email (full flow)
+        Route::get('staging',            [TicketController::class, 'staging']);         // List staging tiket
 
         Route::get('{id}',              [TicketController::class, 'show']);        // Detail tiket
         Route::get('{id}/messages',     [TicketController::class, 'messages']);    // List pesan

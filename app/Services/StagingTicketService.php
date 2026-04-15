@@ -30,7 +30,9 @@ class StagingTicketService
             'customer_id'        => $customerId,
             'description'        => $data['description'],
             'body'               => $data['body'] ?? null,
-            'cc_emails'          => $data['cc_emails'] ?? null,
+            'cc_emails'          => isset($data['cc_emails'])
+                                       ? (is_array($data['cc_emails']) ? json_encode($data['cc_emails']) : $data['cc_emails'])
+                                       : null,
             'name'               => $data['name'] ?? null,
             'no_hp'              => $data['no_hp'] ?? null,
             'module'             => $data['module'] ?? null,

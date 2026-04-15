@@ -11,18 +11,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
+        /* ── CSS Custom Properties (Theming) ── */
+        :root {
+            --primary-color: #c62828;
+            --primary-rgb: 198, 40, 40;
+            --primary-dark: #991b1b;
+            --bg-color: #f9fafb;
+            --text-color: #111827;
+            --card-bg: #ffffff;
+            --base-font-size: 14px;
+        }
+
         * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        html { font-size: var(--base-font-size); }
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: #b91c1c; border-radius: 10px; border: 2px solid #f1f1f1; }
-        ::-webkit-scrollbar-thumb:hover { background: #991b1b; }
+        ::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; border: 2px solid #f1f1f1; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
 
         /* Sidebar nav link hover & active */
         .nav-link { transition: all 0.2s ease; }
         .nav-link:hover { transform: translateX(4px); }
-        .nav-link.active { box-shadow: 0 4px 12px rgba(153,27,27,0.3); }
+        .nav-link.active { box-shadow: 0 4px 12px rgba(var(--primary-rgb),0.3); }
 
         /* ── Toast System ── */
         #toast-container {
@@ -120,6 +132,43 @@
             animation: toastProgressBar linear forwards;
         }
         @keyframes toastProgressBar { from { width: 100%; } to { width: 0%; } }
+
+        /* ── Notification Bell Dropdown ── */
+        #bellDropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 22rem;
+            background: #fff;
+            border-radius: 0.875rem;
+            border: 1.5px solid #e5e7eb;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            z-index: 60;
+        }
+        .notif-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background 0.15s;
+            text-decoration: none;
+            color: inherit;
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item:hover { background: #f9fafb; }
+        .notif-item.unread { background: #fef2f2; }
+        .notif-item.unread:hover { background: #fee2e2; }
+        .notif-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            flex-shrink: 0;
+            margin-top: 6px;
+        }
+        .notif-item.read .notif-dot { background: #d1d5db; }
     </style>
 
     @stack('styles')
@@ -186,6 +235,18 @@
                     <span class="nav-text font-medium">Tickets</span>
                 </a>
             </div>
+            <!-- Settings -->
+            <div class="mb-2">
+                <a href="{{ route('settings') }}"
+                   class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ request()->routeIs('settings*') ? 'active bg-white/20 font-semibold' : 'text-white/80 hover:bg-white/10' }} transition-all">
+                    <span class="w-5 h-5 flex items-center justify-center shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </span>
+                    <span class="nav-text font-medium">Settings</span>
+                </a>
+            </div>
         </nav>
         @endif
 
@@ -217,13 +278,47 @@
 
                     @yield('header-actions')
 
-                    <!-- Notification Bell -->
-                    <button class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                        </svg>
-                        <span class="absolute top-0.5 right-0.5 w-2 h-2 bg-red-600 rounded-full border-2 border-white"></span>
-                    </button>
+                    <!-- ── Notification Bell ── -->
+                    <div class="relative" id="bellWrapper">
+                        <button id="bellBtn" onclick="toggleBellDropdown()"
+                                class="relative w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-600 hover:text-red-800">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            <span id="bellBadge"
+                                  class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white leading-none">
+                                0
+                            </span>
+                        </button>
+
+                        <!-- Bell Dropdown -->
+                        <div id="bellDropdown" class="hidden">
+                            <!-- Header -->
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                                <h3 class="font-semibold text-gray-900 text-sm">Notifications</h3>
+                                <button onclick="markAllBellRead()" class="text-xs font-medium hover:underline" style="color: var(--primary-color);">
+                                    Mark all read
+                                </button>
+                            </div>
+
+                            <!-- Notification List -->
+                            <div id="bellNotifList" class="overflow-y-auto" style="max-height: 340px;">
+                                <div class="text-center py-10 text-gray-400 text-sm">
+                                    <svg class="mx-auto w-10 h-10 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                                    </svg>
+                                    No notifications
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div class="border-t border-gray-100 px-4 py-2.5 text-center">
+                                <a href="{{ route('tickets.index') }}" class="text-xs font-medium hover:underline" style="color: var(--primary-color);">
+                                    View all tickets →
+                                </a>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- User Dropdown -->
                     <div class="relative">
@@ -260,6 +355,14 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                                 </svg>
                                 <span>My Profile</span>
+                            </a>
+                            <!-- Settings -->
+                            <a href="{{ route('settings') }}"
+                               class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-700 text-sm w-full text-left transition-all font-medium">
+                                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                                <span>Settings</span>
                             </a>
                             <!-- Sign Out -->
                             <form action="{{ route('logout') }}" method="POST">
@@ -362,6 +465,81 @@
     });
     @endif
 
+    /* ── Theming / Preferences ── */
+    var _DEFAULT_PREFS = {
+        theme:                 'light',
+        primary_color:         '#c62828',
+        font_size:             'medium',
+        compact_mode:          false,
+        show_animations:       true,
+        notifications_enabled: true,
+    };
+
+    function _loadPrefs() {
+        try {
+            var saved = localStorage.getItem('jarvies_preferences');
+            return saved ? Object.assign({}, _DEFAULT_PREFS, JSON.parse(saved)) : Object.assign({}, _DEFAULT_PREFS);
+        } catch(e) { return Object.assign({}, _DEFAULT_PREFS); }
+    }
+
+    function _hexToRgb(hex) {
+        var r = parseInt(hex.slice(1,3), 16);
+        var g = parseInt(hex.slice(3,5), 16);
+        var b = parseInt(hex.slice(5,7), 16);
+        return r + ', ' + g + ', ' + b;
+    }
+
+    function _darkenHex(hex) {
+        var r = Math.max(0, parseInt(hex.slice(1,3), 16) - 30);
+        var g = Math.max(0, parseInt(hex.slice(3,5), 16) - 30);
+        var b = Math.max(0, parseInt(hex.slice(5,7), 16) - 30);
+        return r + ', ' + g + ', ' + b;
+    }
+
+    function applyTheme(prefs) {
+        var root = document.documentElement;
+
+        // Primary color
+        if (prefs.primary_color) {
+            root.style.setProperty('--primary-color', prefs.primary_color);
+            root.style.setProperty('--primary-rgb',   _hexToRgb(prefs.primary_color));
+            root.style.setProperty('--primary-dark',  '#' + Math.max(0, parseInt(prefs.primary_color.slice(1,3),16)-40).toString(16).padStart(2,'0')
+                                                            + Math.max(0, parseInt(prefs.primary_color.slice(3,5),16)-40).toString(16).padStart(2,'0')
+                                                            + Math.max(0, parseInt(prefs.primary_color.slice(5,7),16)-40).toString(16).padStart(2,'0'));
+        }
+
+        // Font size
+        var fontMap = { small: '12px', medium: '14px', large: '16px' };
+        root.style.setProperty('--base-font-size', fontMap[prefs.font_size] || '14px');
+
+        // Compact mode
+        if (prefs.compact_mode) {
+            document.body.classList.add('compact-mode');
+        } else {
+            document.body.classList.remove('compact-mode');
+        }
+
+        // Animations
+        if (prefs.show_animations === false) {
+            root.style.setProperty('--transition-speed', '0ms');
+        } else {
+            root.style.removeProperty('--transition-speed');
+        }
+
+        // Dark mode (simple class toggle — expand as needed)
+        if (prefs.theme === 'dark') {
+            document.body.classList.add('dark-mode');
+        } else if (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+    }
+
+    // Apply theme on page load
+    (function() { applyTheme(_loadPrefs()); })();
+
+    /* ── Sidebar Toggle ── */
     var isCollapsed = false;
 
     function toggleSidebar() {
@@ -396,17 +574,208 @@
         }
     }
 
+    /* ── User Dropdown ── */
     function toggleUserDropdown() {
         document.getElementById('userDropdown').classList.toggle('hidden');
     }
 
-    // Close user dropdown when clicking outside
     document.addEventListener('click', function(e) {
-        var btn      = e.target.closest('button[onclick="toggleUserDropdown()"]');
-        var dropdown = document.getElementById('userDropdown');
-        if (!btn && dropdown && !dropdown.contains(e.target)) {
-            dropdown.classList.add('hidden');
+        // Close user dropdown when clicking outside
+        var userBtn      = e.target.closest('button[onclick="toggleUserDropdown()"]');
+        var userDropdown = document.getElementById('userDropdown');
+        if (!userBtn && userDropdown && !userDropdown.contains(e.target)) {
+            userDropdown.classList.add('hidden');
         }
+        // Close bell dropdown when clicking outside
+        var bellWrapper = document.getElementById('bellWrapper');
+        if (bellWrapper && !bellWrapper.contains(e.target)) {
+            var bd = document.getElementById('bellDropdown');
+            if (bd) bd.classList.add('hidden');
+        }
+    });
+
+    /* ── Notification Bell ── */
+    var _bellNotifications = []; // [{ ticket_id, ticket_number, subject, updated_at, read }]
+    var _ticketStates = {};       // { ticket_id: updated_at_string }
+    var _bellInitialized = false;
+
+    function _getNotifPrefs() {
+        return _loadPrefs().notifications_enabled !== false;
+    }
+
+    function _saveBellState() {
+        try { localStorage.setItem('jarvies_bell_notifs', JSON.stringify(_bellNotifications)); } catch(e) {}
+        try { localStorage.setItem('jarvies_ticket_states', JSON.stringify(_ticketStates)); } catch(e) {}
+    }
+
+    function _loadBellState() {
+        try {
+            var n = localStorage.getItem('jarvies_bell_notifs');
+            if (n) _bellNotifications = JSON.parse(n);
+        } catch(e) {}
+        try {
+            var s = localStorage.getItem('jarvies_ticket_states');
+            if (s) _ticketStates = JSON.parse(s);
+        } catch(e) {}
+    }
+
+    function _updateBellBadge() {
+        var badge = document.getElementById('bellBadge');
+        if (!badge) return;
+        var unread = _bellNotifications.filter(function(n) { return !n.read; }).length;
+        if (unread > 0) {
+            badge.textContent = unread > 99 ? '99+' : unread;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    function _renderBellList() {
+        var list = document.getElementById('bellNotifList');
+        if (!list) return;
+        if (_bellNotifications.length === 0) {
+            list.innerHTML =
+                '<div class="text-center py-10 text-gray-400 text-sm">' +
+                '<svg class="mx-auto w-10 h-10 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>' +
+                'No notifications</div>';
+            return;
+        }
+        var html = '';
+        var shown = _bellNotifications.slice(0, 8);
+        shown.forEach(function(n) {
+            var readClass = n.read ? 'read' : 'unread';
+            var timeAgo   = _timeAgo(n.updated_at);
+            var ticketUrl = '/tickets/' + n.ticket_id;
+            html +=
+                '<a href="' + ticketUrl + '" class="notif-item ' + readClass + '" onclick="markNotifRead(' + n.ticket_id + ')">' +
+                    '<span class="notif-dot mt-1 flex-shrink-0"></span>' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<p class="text-sm font-semibold text-gray-800 truncate">' + _escHtml(n.subject || 'Ticket #' + n.ticket_number) + '</p>' +
+                        '<p class="text-xs text-gray-500 mt-0.5">Ticket updated &bull; ' + timeAgo + '</p>' +
+                    '</div>' +
+                '</a>';
+        });
+        list.innerHTML = html;
+    }
+
+    function _escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function _timeAgo(isoStr) {
+        if (!isoStr) return '';
+        var diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+        if (diff < 60)   return 'just now';
+        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+        return Math.floor(diff/86400) + 'd ago';
+    }
+
+    function toggleBellDropdown() {
+        var bd = document.getElementById('bellDropdown');
+        if (!bd) return;
+        var willOpen = bd.classList.contains('hidden');
+        bd.classList.toggle('hidden');
+        if (willOpen) {
+            _renderBellList();
+        }
+    }
+
+    function markNotifRead(ticketId) {
+        _bellNotifications.forEach(function(n) {
+            if (n.ticket_id == ticketId) n.read = true;
+        });
+        _saveBellState();
+        _updateBellBadge();
+    }
+
+    function markAllBellRead() {
+        _bellNotifications.forEach(function(n) { n.read = true; });
+        _saveBellState();
+        _updateBellBadge();
+        _renderBellList();
+    }
+
+    function _pollTickets() {
+        if (!_getNotifPrefs()) return;
+        fetch('/tickets/ajax/fetch', {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !Array.isArray(data.data)) return;
+            var tickets = data.data.filter(function(t) { return !t.is_staging && t.ticket_id; });
+
+            if (!_bellInitialized) {
+                // First load: populate states without triggering notifications
+                tickets.forEach(function(t) {
+                    _ticketStates[t.ticket_id] = t.updated_at;
+                });
+                _bellInitialized = true;
+                _saveBellState();
+                _updateBellBadge();
+                return;
+            }
+
+            var hasNew = false;
+            tickets.forEach(function(t) {
+                var prev = _ticketStates[t.ticket_id];
+                var curr = t.updated_at;
+                if (prev === undefined) {
+                    // Brand new ticket — no notification (customer submitted it)
+                    _ticketStates[t.ticket_id] = curr;
+                    return;
+                }
+                if (prev !== curr) {
+                    // Ticket was updated since last check
+                    _ticketStates[t.ticket_id] = curr;
+                    // Check if already in list
+                    var existing = _bellNotifications.find(function(n) { return n.ticket_id == t.ticket_id; });
+                    var notifObj = {
+                        ticket_id:     t.ticket_id,
+                        ticket_number: t.ticket_number || t.ticket_id,
+                        subject:       t.subject || t.description || ('Ticket #' + (t.ticket_number || t.ticket_id)),
+                        updated_at:    curr,
+                        read:          false,
+                    };
+                    if (existing) {
+                        // Update and mark unread
+                        Object.assign(existing, notifObj);
+                    } else {
+                        _bellNotifications.unshift(notifObj);
+                        // Show toast notification
+                        showToast(
+                            'Ticket #' + (t.ticket_number || t.ticket_id) + ' has been updated.',
+                            'info',
+                            'Ticket Update'
+                        );
+                    }
+                    // Keep max 20
+                    if (_bellNotifications.length > 20) _bellNotifications.pop();
+                    hasNew = true;
+                }
+            });
+
+            if (hasNew) {
+                _saveBellState();
+                _updateBellBadge();
+                // Re-render if dropdown is open
+                var bd = document.getElementById('bellDropdown');
+                if (bd && !bd.classList.contains('hidden')) _renderBellList();
+            }
+        })
+        .catch(function() {}); // Silently ignore network errors
+    }
+
+    // Initialize bell on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        _loadBellState();
+        _updateBellBadge();
+        // Start polling — first call initializes states
+        _pollTickets();
+        setInterval(_pollTickets, 30000);
     });
 </script>
 

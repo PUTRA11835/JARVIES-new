@@ -50,17 +50,19 @@ class ApiAuth
 
         $customer = DB::table('customer as c')
             ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
+            ->leftJoin('auth_users as au', 'au.customer_id', '=', 'c.customer_id')
             ->where('c.customer_code', $customerCode)
             ->where('c.is_active', true)
             ->select(
                 'c.customer_id',
                 'c.customer_code',
-                'c.email',
+                'c.email as company_email',
                 'cb.title',
                 'cb.name_1',
                 'cb.name_2',
                 'cb.customer_category',
-                'cb.customer_group'
+                'cb.customer_group',
+                'au.email as login_email'
             )
             ->first();
 
@@ -73,13 +75,17 @@ class ApiAuth
 
         $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
 
+        // Gunakan login_email (auth_users) untuk pengiriman email — sama dengan web UI
+        // Fallback ke company_email jika auth_users tidak ada
+        $email = $customer->login_email ?? $customer->company_email;
+
         // Inject data user ke request agar bisa diakses controller
         $request->attributes->set('api_user', [
             'id'            => $customer->customer_id,
             'type'          => 'customer',
             'customer_code' => $customer->customer_code,
             'company_name'  => $companyName,
-            'email'         => $customer->email,
+            'email'         => $email,
             'category'      => $customer->customer_category,
             'group'         => $customer->customer_group,
             'role'          => ['id' => 3, 'name' => 'Customer'],

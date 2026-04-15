@@ -515,6 +515,8 @@ class TicketController extends Controller
                 // Opsional
                 ['name' => 'sender_name',         'contents' => $senderName ?? ''],
                 ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
+                // Channel email — karena tiket masuk via email yang dikirim Graph API
+                ['name' => 'channel',             'contents' => 'email'],
             ];
 
             // cc_emails sebagai JSON string [{name, address}] sesuai format EcoSystem
@@ -1579,6 +1581,9 @@ class TicketController extends Controller
             $inlineImages    = [];
             $fileAttachments = [];
             $htmlBody        = $request->input('comment_html', '');
+            // Simpan HTML asli (dengan base64 data URI) untuk ditampilkan di JARVIES web.
+            // $htmlBody akan dimodifikasi (base64 → cid:) khusus untuk pengiriman email.
+            $htmlBodyForDb   = $htmlBody;
 
             // 1. Ekstrak gambar inline dari Quill HTML (Ctrl+V / paste)
             //    Ganti data URI dengan cid: reference agar tampil inline di email client
@@ -1603,7 +1608,8 @@ class TicketController extends Controller
                         'mime'    => $mime,
                         'cid'     => $cid,
                     ];
-                    // Ganti data URI di HTML body dengan cid: reference
+                    // Ganti data URI di $htmlBody (versi email) dengan cid: reference
+                    // $htmlBodyForDb TIDAK diubah — tetap pakai base64 agar browser bisa render
                     $htmlBody = str_replace($m[1], 'cid:' . $cid, $htmlBody);
                 }
             }
@@ -1698,7 +1704,7 @@ class TicketController extends Controller
                     'sender_email'        => $senderEmail,
                     'sender_name'         => $senderName,
                     'message'             => $request->input('comment', ''),
-                    'message_html'        => $htmlBody ?: null,
+                    'message_html'        => $htmlBodyForDb ?: null,
                     'channel'             => 'email',
                     'email_message_id'    => $result['internet_message_id'],
                     'is_internal_note'    => false,

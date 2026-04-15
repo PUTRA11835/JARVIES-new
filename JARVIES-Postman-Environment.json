@@ -1,0 +1,52 @@
+{
+    "id": "jarvies-environment-production",
+    "name": "JARVIES Production",
+    "values": [
+        {
+            "key": "base_url",
+            "value": "https://jarvies.ecosystemtest.org",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "secret",
+            "enabled": true
+        },
+        {
+            "key": "refresh_token",
+            "value": "",
+            "type": "secret",
+            "enabled": true
+        },
+        {
+            "key": "ticket_id",
+            "value": "",
+            "type": "default",
+            "enabled": true,
+            "_postman_variable_scope": "environment",
+            "description": "Isi dengan ticket_id (angka) dari response GET /api/tickets"
+        },
+        {
+            "key": "customer_id",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "customer_code",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        },
+        {
+            "key": "staging_id",
+            "value": "",
+            "type": "default",
+            "enabled": true
+        }
+    ],
+    "_postman_variable_scope": "environment",
+    "description": "Environment untuk JARVIES API Production.\n\nVariabel access_token dan refresh_token akan terisi otomatis setelah request Login berhasil.\n\nIsi ticket_id secara manual dengan angka ticket_id dari response GET /api/tickets."
+}

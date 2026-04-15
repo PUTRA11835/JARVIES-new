@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
+use App\Services\GraphRelayService;
 use App\Services\StagingTicketService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -132,6 +134,216 @@ class TicketController extends Controller
 
             return response()->json(['success' => false, 'message' => 'Gagal membuat tiket.'], 500);
         }
+    }
+
+    /**
+     * POST /api/tickets/submit-with-email
+     * Buat tiket baru dengan alur lengkap:
+     *   1. Kirim email ke customer via Microsoft Graph API
+     *   2. POST ke EcoSystem /jarvies/staging-tickets dengan channel=email
+     *
+     * Endpoint ini untuk keperluan testing Postman — identik dengan alur web UI.
+     *
+     * Body (multipart/form-data):
+     *   description      (required)
+     *   ticket_priority  (nullable: Low|Medium|High|Very High)
+     *   body             (nullable, isi pesan plain text)
+     *   body_html        (nullable, isi pesan HTML dari Quill)
+     *   cc_emails[]      (nullable, array email CC)
+     *   attachments[]    (nullable, file upload)
+     */
+    public function storeWithEmail(Request $request)
+    {
+        $user = $request->attributes->get('api_user');
+
+        $validator = Validator::make($request->all(), [
+            'description'     => 'required|string|max:5000',
+            'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
+            'body'            => 'nullable|string',
+            'body_html'       => 'nullable|string',
+            'cc_emails'       => 'nullable|array|max:10',
+            'cc_emails.*'     => 'email',
+            'attachments'     => 'nullable|array',
+            'attachments.*'   => 'file|max:20480',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $validated   = $validator->validated();
+        $senderName  = $user['company_name'] ?? $user['name'] ?? null;
+        $senderEmail = $user['email'] ?? null;
+
+        if (!$senderEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun Anda tidak memiliki email. Hubungi administrator.',
+            ], 422);
+        }
+
+        $ccEmails = array_values(array_filter($validated['cc_emails'] ?? []));
+
+        // Body HTML; fallback ke plain text
+        $bodyHtml = $validated['body_html'] ?? $validated['body'] ?? '';
+        if ($bodyHtml && !str_starts_with(ltrim($bodyHtml), '<')) {
+            $bodyHtml = '<p>' . nl2br(htmlspecialchars($bodyHtml)) . '</p>';
+        }
+
+        // ── STEP 1: Ekstrak inline images dari body HTML (data URI → cid:) ──
+        $emailInlineImages = [];
+        $emailBodyHtml     = $bodyHtml;
+
+        if ($emailBodyHtml) {
+            preg_match_all(
+                '/<img[^>]+src="(data:(image\/[a-zA-Z+\-]+);base64,([A-Za-z0-9+\/=\s]+))"[^>]*>/i',
+                $emailBodyHtml,
+                $imgMatches,
+                PREG_SET_ORDER
+            );
+            foreach ($imgMatches as $i => $m) {
+                $mime    = strtolower($m[2]);
+                $content = base64_decode(preg_replace('/\s+/', '', $m[3]));
+                $ext     = ltrim(strrchr($mime, '/'), '/');
+                $ext     = str_replace(['+xml', '+'], ['', '-'], $ext) ?: 'png';
+                $cid     = 'img-' . ($i + 1) . '@jarvies';
+                $imgName = 'image-' . ($i + 1) . '.' . $ext;
+
+                $emailInlineImages[] = [
+                    'name'    => $imgName,
+                    'content' => $content,
+                    'mime'    => $mime,
+                    'cid'     => $cid,
+                ];
+                $emailBodyHtml = str_replace($m[1], 'cid:' . $cid, $emailBodyHtml);
+            }
+        }
+
+        // ── STEP 2: Baca file attachments dari request ───────────────────────
+        $emailFileAttachments = [];
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $emailFileAttachments[] = [
+                    'name'    => $file->getClientOriginalName(),
+                    'content' => file_get_contents($file->getRealPath()),
+                    'mime'    => $file->getMimeType() ?: 'application/octet-stream',
+                ];
+            }
+        }
+
+        // ── STEP 3: Kirim email via GraphRelayService ────────────────────────
+        $emailSubject = '[Menunggu Validasi] ' . $validated['description'];
+
+        $emailBody = '<p style="color:#555;margin-bottom:12px"><em>[Tiket baru dari '
+            . htmlspecialchars($senderName ?? 'Customer')
+            . ' via Jarvies]</em></p>'
+            . '<div style="margin-bottom:16px"><strong>Description:</strong>'
+            . '<div style="margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">'
+            . ($emailBodyHtml ?: '<p><em>(Tidak ada pesan)</em></p>')
+            . '</div></div>';
+
+        try {
+            $graphService = new GraphRelayService();
+            $emailResult  = $graphService->sendStandaloneEmail(
+                $senderEmail,
+                $emailSubject,
+                $emailBody,
+                $ccEmails,
+                $emailInlineImages,
+                $emailFileAttachments
+            );
+        } catch (\Exception $e) {
+            Log::error('Mobile API: TicketController@storeWithEmail: Graph exception', [
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim email: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        if (!$emailResult) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim email. Silakan coba lagi.',
+            ], 500);
+        }
+
+        $internetMsgId = $emailResult['internet_message_id'];
+
+        // ── STEP 4: POST ke EcoSystem /jarvies/staging-tickets ──────────────
+        $multipart = [
+            ['name' => 'description',         'contents' => $validated['description']],
+            ['name' => 'customer_id',         'contents' => (string) $user['id']],
+            ['name' => 'submitted_by_email',  'contents' => $senderEmail],
+            ['name' => 'body',                'contents' => $emailBodyHtml ?: ''],
+            ['name' => 'internet_message_id', 'contents' => $internetMsgId],
+            ['name' => 'sender_name',         'contents' => $senderName ?? ''],
+            ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
+            ['name' => 'channel',             'contents' => 'email'],
+        ];
+
+        if (!empty($ccEmails)) {
+            $multipart[] = [
+                'name'     => 'cc_emails',
+                'contents' => json_encode(array_map(
+                    fn($email) => ['name' => $email, 'address' => $email],
+                    $ccEmails
+                )),
+            ];
+        }
+
+        foreach ($emailFileAttachments as $file) {
+            $multipart[] = [
+                'name'     => 'attachments[]',
+                'contents' => $file['content'],
+                'filename' => $file['name'],
+                'headers'  => ['Content-Type' => $file['mime']],
+            ];
+        }
+
+        $ecoStatus = null;
+        $ecoBody   = null;
+        $ecoError  = null;
+
+        try {
+            $ecoResponse = Http::withHeaders(['X-Api-Key' => config('ecosystem.api_key')])
+                ->asMultipart()
+                ->timeout(20)
+                ->post(config('ecosystem.url') . '/jarvies/staging-tickets', $multipart);
+
+            $ecoStatus = $ecoResponse->status();
+            $ecoBody   = $ecoResponse->body();
+
+            if (!$ecoResponse->successful()) {
+                Log::warning('Mobile API: storeWithEmail: EcoSystem API failed (non-critical)', [
+                    'status' => $ecoStatus,
+                    'body'   => $ecoBody,
+                ]);
+            }
+        } catch (\Exception $apiEx) {
+            $ecoError = $apiEx->getMessage();
+            Log::warning('Mobile API: storeWithEmail: EcoSystem API exception (non-critical)', [
+                'error' => $ecoError,
+            ]);
+        }
+
+        return response()->json([
+            'success'    => true,
+            'staging'    => true,
+            'email_sent' => true,
+            'message'    => 'Tiket berhasil dikirim dan sedang menunggu validasi admin.',
+            'debug_eco'  => [
+                'url'    => config('ecosystem.url') . '/jarvies/staging-tickets',
+                'status' => $ecoStatus,
+                'body'   => $ecoBody,
+                'error'  => $ecoError,
+            ],
+        ], 201);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -271,15 +483,12 @@ class TicketController extends Controller
                 'sender_name'            => $user['company_name'] ?? 'Customer',
                 'message'                => $request->message,
                 'is_internal_note'       => false,
-                'channel'                => 'mobile',
+                'channel'                => 'web',
                 'is_read_by_customer'    => true,
                 'is_read_by_agent'       => false,
             ]);
 
-            $ticket->update([
-                'last_message_at'        => now(),
-                'last_customer_reply_at' => now(),
-            ]);
+            // last_message_at / last_customer_reply_at tidak ada di schema ticket — skip update
 
             return response()->json([
                 'success' => true,

@@ -1,0 +1,542 @@
+{
+    "info": {
+        "_postman_id": "jarvies-api-collection-v2",
+        "name": "JARVIES API",
+        "description": "Koleksi lengkap API JARVIES untuk testing semua endpoint.\n\nBase URL: https://jarvies.ecosystemtest.org\n\nCara pakai:\n1. Import collection ini\n2. Import environment JARVIES-Postman-Environment.json\n3. Aktifkan environment JARVIES Production\n4. Jalankan request Login terlebih dahulu\n5. Token akan tersimpan otomatis di environment",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{access_token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "1. Auth",
+            "item": [
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const data = pm.response.json().data;",
+                                    "    pm.environment.set('access_token',  data.access_token);",
+                                    "    pm.environment.set('refresh_token', data.refresh_token);",
+                                    "    pm.environment.set('customer_id',   String(data.user.id));",
+                                    "    pm.environment.set('customer_code', data.user.customer_code);",
+                                    "    console.log('✅ Login berhasil');",
+                                    "    console.log('👤 User:', data.user.company_name, '|', data.user.customer_code);",
+                                    "    console.log('🔑 access_token:', data.access_token);",
+                                    "} else {",
+                                    "    console.log('❌ Login gagal:', pm.response.json().message);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"customer@domain.com\",\n    \"password\": \"password123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Login customer. Mendapatkan access_token dan refresh_token.\n\nField 'email' bisa diisi dengan email, username, atau nomor HP.\n\nToken akan otomatis tersimpan ke environment setelah login berhasil."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Me (Profil Saya)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/me",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "me"]
+                        },
+                        "description": "Ambil profil customer yang sedang login berdasarkan Bearer token.\n\nGunakan ini untuk verifikasi bahwa token valid setelah login."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const data = pm.response.json().data;",
+                                    "    pm.environment.set('access_token',  data.access_token);",
+                                    "    pm.environment.set('refresh_token', data.refresh_token);",
+                                    "    console.log('🔄 Token berhasil diperbarui');",
+                                    "    console.log('🔑 access_token baru:', data.access_token);",
+                                    "} else {",
+                                    "    console.log('❌ Refresh gagal:', pm.response.json().message);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/refresh",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "refresh"]
+                        },
+                        "description": "Tukar refresh token dengan access token baru (rotating).\n\nToken lama langsung hangus setelah dipanggil.\nToken baru akan otomatis tersimpan ke environment."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Logout (Device Ini)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/logout",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "logout"]
+                        },
+                        "description": "Logout dan hapus refresh token ini saja (device ini).\n\nJika ingin logout semua device, kirim body kosong {} atau hapus field refresh_token."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Logout (Semua Device)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/logout",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "logout"]
+                        },
+                        "description": "Logout semua device — semua refresh token milik customer ini dihapus.\n\nBody dikirim kosong (tidak ada field refresh_token)."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "2. Dashboard",
+            "item": [
+                {
+                    "name": "Dashboard (Statistik + Tiket Terbaru)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/dashboard",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "dashboard"]
+                        },
+                        "description": "Ringkasan statistik tiket per status + 5 tiket terbaru.\n\nDigunakan untuk halaman Home di mobile app."
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "3. Tiket",
+            "item": [
+                {
+                    "name": "List Semua Tiket",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets"]
+                        },
+                        "description": "List semua tiket milik customer. Urut dari terbaru."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Tiket — Filter Open",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets?status=open",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "open",
+                                    "description": "Nilai: open | in_progress | hold | closed | cancel"
+                                }
+                            ]
+                        },
+                        "description": "Filter tiket berdasarkan status.\n\nNilai status: open | in_progress | hold | closed | cancel\n\nGanti nilai query param 'status' sesuai kebutuhan."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Tiket — Filter In Progress",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets?status=in_progress",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "in_progress"
+                                }
+                            ]
+                        },
+                        "description": "Filter tiket dengan status in_progress."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Tiket — Filter Closed",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets?status=closed",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "closed"
+                                }
+                            ]
+                        },
+                        "description": "Filter tiket dengan status closed."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detail Tiket",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets/{{ticket_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets", "{{ticket_id}}"]
+                        },
+                        "description": "Detail satu tiket. Isi variabel {{ticket_id}} di environment dengan angka ticket_id dari response 'List Semua Tiket'.\n\nCustomer hanya bisa akses tiket miliknya sendiri."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Buat Tiket (Tanpa Email)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const data = pm.response.json().data;",
+                                    "    pm.environment.set('staging_id', String(data.id));",
+                                    "    console.log('✅ Staging tiket dibuat:', data.staging_ref);",
+                                    "    console.log('📋 Status:', data.status_label);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"description\": \"Masalah tcode VL03 tidak bisa dibuka\",\n    \"ticket_priority\": \"High\",\n    \"body\": \"Saat membuka tcode VL03, muncul error short dump. Sudah dicoba restart SAP tapi masih sama. Mohon bantuan.\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets"]
+                        },
+                        "description": "Buat tiket baru — masuk staging saja, TANPA kirim email.\n\nGunakan endpoint ini untuk mobile app Flutter.\n\nNilai ticket_priority: Low | Medium | High\n\nTiket akan muncul di staging dan butuh validasi admin sebelum menjadi tiket aktif."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Buat Tiket + Kirim Email (Full Flow)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "description",
+                                    "value": "Testing create ticket via Postman dengan email",
+                                    "description": "Judul/subject tiket (wajib)",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "ticket_priority",
+                                    "value": "High",
+                                    "description": "Low | Medium | High | Very High",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "body",
+                                    "value": "Ini adalah body pesan testing dari Postman. Masalah terjadi saat membuka tcode VL03.",
+                                    "description": "Isi pesan (opsional)",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "cc_emails[]",
+                                    "value": "",
+                                    "description": "Email CC (opsional, bisa dikosongkan atau diisi email)",
+                                    "type": "text",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "attachments[]",
+                                    "description": "File lampiran (opsional, max 20MB per file)",
+                                    "type": "file",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets/submit-with-email",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets", "submit-with-email"]
+                        },
+                        "description": "Buat tiket dengan alur LENGKAP — identik dengan web UI JARVIES:\n1. Kirim email ke customer via Microsoft Graph API\n2. POST ke EcoSystem dengan channel=email + internet_message_id\n\nGunakan Body type: form-data (bukan raw JSON).\nJangan set Content-Type manual.\n\nNilai ticket_priority: Low | Medium | High | Very High\n\nAktifkan baris cc_emails[] atau attachments[] jika diperlukan."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Staging Tiket",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets/staging",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets", "staging"]
+                        },
+                        "description": "List tiket yang masuk staging (menunggu validasi / sudah divalidasi / ditolak admin).\n\nStatus staging: unvalidated | validated | rejected\n\nJika status=validated, maka ticket_id dan ticket_number akan terisi."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "List Pesan Tiket",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets/{{ticket_id}}/messages",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets", "{{ticket_id}}", "messages"]
+                        },
+                        "description": "List semua pesan percakapan dalam tiket.\n\nInternal note tidak ditampilkan.\nOtomatis menandai pesan dari agent sebagai sudah dibaca.\n\nIsi {{ticket_id}} di environment dengan angka ticket_id."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Kirim Pesan ke Tiket",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"message\": \"Testing kirim pesan dari Postman. Masalah masih terjadi setelah restart, mohon ditindaklanjuti.\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/tickets/{{ticket_id}}/messages",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "tickets", "{{ticket_id}}", "messages"]
+                        },
+                        "description": "Kirim pesan/reply ke dalam tiket.\n\nField message wajib diisi, max 5000 karakter.\n\nIsi {{ticket_id}} di environment dengan angka ticket_id."
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "https://jarvies.ecosystemtest.org",
+            "type": "string"
+        }
+    ]
+}
