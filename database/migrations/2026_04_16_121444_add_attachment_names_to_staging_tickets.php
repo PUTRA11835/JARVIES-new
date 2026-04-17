@@ -12,19 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('staging_tickets', function (Blueprint $table) {
-            if (!Schema::hasColumn('staging_tickets', 'body')) {
-                $table->text('body')->nullable()->after('description');
+            if (!Schema::hasColumn('staging_tickets', 'attachment_names')) {
+                $table->text('attachment_names')->nullable()->after('has_attachments');
             }
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('staging_tickets', function (Blueprint $table) {
-            $table->dropColumn('body');
+            if (Schema::hasColumn('staging_tickets', 'attachment_names')) {
+                $table->dropColumn('attachment_names');
+            }
         });
     }
 };

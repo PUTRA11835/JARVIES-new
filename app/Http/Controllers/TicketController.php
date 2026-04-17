@@ -18,6 +18,39 @@ use Illuminate\Support\Facades\Auth;
 class TicketController extends Controller
 {
     /**
+     * Resolve EcoSystem public base URL (without /api) from config.
+     * Prefers ECOSYSTEM_BASE_URL; falls back to stripping trailing /api from ECOSYSTEM_URL.
+     * Result: e.g. "https://ecosystem.domain.com"
+     */
+    private function ecoBaseUrl(): string
+    {
+        $explicit = rtrim(config('ecosystem.base_url', ''), '/');
+        if ($explicit) {
+            return $explicit;
+        }
+        // Safe strip: only remove if URL ends exactly with /api
+        $apiUrl = rtrim(config('ecosystem.url', ''), '/');
+        if (str_ends_with($apiUrl, '/api')) {
+            return substr($apiUrl, 0, -4);
+        }
+        return $apiUrl;
+    }
+
+    /**
+     * Rewrite relative EcoSystem storage paths to absolute URLs.
+     * /storage/... → https://ecosystem.domain.com/storage/...
+     * /attachments/... kept as-is (JARVIES own route via AttachmentController).
+     */
+    private function rewriteEcoUrl(?string $url, string $ecoBase): ?string
+    {
+        if (!$url || !$ecoBase) return $url;
+        if (str_starts_with($url, '/storage/')) {
+            return $ecoBase . $url;
+        }
+        return $url;
+    }
+
+    /**
      * Get user info for history
      */
     private function getUserInfo($sessionUser)
@@ -432,7 +465,7 @@ class TicketController extends Controller
             // Subject email = "[Menunggu Validasi] {description}"
             // description di API harus SAMA dengan subject email (tanpa prefix).
             // EcoSystem cocokkan staging ke email via LOWER(description) = LOWER(clean_subject).
-            $emailSubject = '[Menunggu Validasi] ' . $validated['description'];
+            $emailSubject = '[No Reply] [Menunggu Validasi] ' . $validated['description'];
 
             $emailBody = $this->buildTicketEmailBody(
                 $senderName,
@@ -487,8 +520,10 @@ class TicketController extends Controller
             // ── STEP 4a: Simpan staging ke DB JARVIES sendiri ────────────────────
             // Ini memastikan staging selalu muncul di ticket list customer,
             // bahkan jika EcoSystem API tidak tersedia.
+            // Reconnect MySQL — koneksi bisa timeout selama email dikirim via Graph API.
+            DB::reconnect();
             $service = new StagingTicketService();
-            $service->createFromWeb(
+            $stagingRecord = $service->createFromWeb(
                 array_merge($validated, [
                     'email_thread_id'  => $conversationId,
                     'email_message_id' => $internetMsgId,
@@ -496,8 +531,21 @@ class TicketController extends Controller
                 ]),
                 $user['id'],
                 $senderEmail,
-                $senderName
+                $senderName,
+                array_column($emailFileAttachments, 'name')
             );
+
+            // Simpan file attachment lokal agar bisa didownload dari staging view
+            if (!empty($emailFileAttachments) && $stagingRecord) {
+                $dir = storage_path('app/staging-attachments/' . $stagingRecord->id);
+                if (!is_dir($dir)) {
+                    mkdir($dir, 0755, true);
+                }
+                foreach ($emailFileAttachments as $file) {
+                    $safeName = preg_replace('/[^A-Za-z0-9.\-_]/', '_', $file['name']);
+                    file_put_contents($dir . '/' . $safeName, $file['content']);
+                }
+            }
 
             // ── STEP 4b: POST ke EcoSystem API /jarvies/staging-tickets ──────────
             // Wajib multipart/form-data — jangan set Content-Type manual.
@@ -1430,30 +1478,58 @@ class TicketController extends Controller
 
             $isCustomer = $sessionUser['role']['id'] == 3;
 
+            $ecoBase = $this->ecoBaseUrl();
+
             $messages = TicketMessage::where('ticket_id', $id)
                 ->with('attachments')
                 ->when($isCustomer, fn($q) => $q->where('is_internal_note', false))
                 ->orderBy('created_at', 'asc')
                 ->get()
-                ->map(fn($msg) => [
-                    'id'           => $msg->id,
-                    'sender_type'  => $msg->sender_type,
-                    'sender_name'  => $msg->sender_name,
-                    'sender_email' => $msg->sender_email,
-                    'message'      => $msg->message,
-                    'message_html' => $msg->message_html,
-                    'cc_emails'    => $msg->cc_emails,
-                    'channel'      => $msg->channel,
-                    'attachments'  => $msg->attachments
+                ->map(function ($msg) use ($ecoBase) {
+                    // Rewrite relative /storage/ paths di message_html ke URL absolut EcoSystem
+                    // agar inline images yang disimpan EcoSystem bisa dirender di browser JARVIES
+                    $html = $msg->message_html;
+                    if ($html && $ecoBase) {
+                        $html = str_replace('src="/storage/', 'src="' . $ecoBase . '/storage/', $html);
+                        $html = str_replace("src='/storage/", "src='" . $ecoBase . '/storage/', $html);
+                    }
+
+                    // Deduplikasi attachment: hapus duplikat dari staging multipart.
+                    // EcoSystem kadang simpan file 2x — satu dari staging_attachments (URL jelek),
+                    // satu dari email attachment (URL proper /attachments/{id}).
+                    // Prioritaskan yang dari email (/attachments/), hapus yang dari staging_attachments.
+                    $seen = [];
+                    $deduped = $msg->attachments
                         ->filter(fn($a) => !($a->is_inline ?? false))
+                        ->sortBy(fn($a) => str_starts_with($a->url ?? '', '/storage/staging_attachments') ? 1 : 0)
+                        ->filter(function ($a) use (&$seen) {
+                            $norm = preg_replace('/^\d+_/', '', $a->file_name ?? $a->link_title ?? '');
+                            if (in_array($norm, $seen, true)) {
+                                return false;
+                            }
+                            $seen[] = $norm;
+                            return true;
+                        })
                         ->map(fn($a) => [
                             'id'              => $a->id,
-                            'file_name'       => $a->file_name ?? $a->link_title ?? 'Attachment',
+                            'file_name'       => preg_replace('/^\d+_/', '', $a->file_name ?? $a->link_title ?? 'Attachment'),
                             'attachment_type' => $a->attachment_type,
-                            'url'             => $a->url ?? $a->link_url,
-                        ])->values(),
-                    'created_at'   => $msg->created_at?->toIso8601String(),
-                ]);
+                            'url'             => $this->rewriteEcoUrl($a->url ?? $a->link_url, $ecoBase),
+                        ])->values();
+
+                    return [
+                        'id'           => $msg->id,
+                        'sender_type'  => $msg->sender_type,
+                        'sender_name'  => $msg->sender_name,
+                        'sender_email' => $msg->sender_email,
+                        'message'      => $msg->message,
+                        'message_html' => $html,
+                        'cc_emails'    => $msg->cc_emails,
+                        'channel'      => $msg->channel,
+                        'attachments'  => $deduped,
+                        'created_at'   => $msg->created_at?->toIso8601String(),
+                    ];
+                });
 
             // Tandai semua pesan dari agent sebagai sudah dibaca oleh customer
             if ($isCustomer) {
@@ -3195,5 +3271,60 @@ class TicketController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Download file attachment dari staging ticket.
+     * URL: GET /tickets/staging/{stagingId}/attachments/{filename}
+     */
+    public function downloadStagingAttachment($stagingId, $filename)
+    {
+        $user = session('user');
+        if (!$user) {
+            abort(403);
+        }
+
+        // Pastikan staging milik customer yang login
+        $staging = StagingTicket::where('id', $stagingId)
+            ->where('customer_id', $user['id'])
+            ->firstOrFail();
+
+        // Sanitasi nama file — cegah path traversal
+        $safeName = basename(preg_replace('/[^A-Za-z0-9.\-_]/', '_', $filename));
+        $filePath = storage_path('app/staging-attachments/' . $stagingId . '/' . $safeName);
+
+        if (!file_exists($filePath)) {
+            abort(404, 'Attachment not found.');
+        }
+
+        return response()->download($filePath, $filename);
+    }
+
+    public function serveStagingImage($stagingId, $filename)
+    {
+        $user = session('user');
+        if (!$user) abort(403);
+
+        // Pastikan staging milik customer yang login
+        StagingTicket::where('id', $stagingId)
+            ->where('customer_id', $user['id'])
+            ->firstOrFail();
+
+        // Sanitasi nama file — cegah path traversal
+        $safeName = basename(preg_replace('/[^A-Za-z0-9.\-_]/', '_', $filename));
+        $filePath = storage_path('app/staging-images/' . $stagingId . '/' . $safeName);
+
+        if (!file_exists($filePath)) abort(404);
+
+        $ext  = strtolower(pathinfo($safeName, PATHINFO_EXTENSION));
+        $mime = match($ext) {
+            'png'  => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif'  => 'image/gif',
+            'webp' => 'image/webp',
+            default => 'application/octet-stream',
+        };
+
+        return response()->file($filePath, ['Content-Type' => $mime]);
     }
 }

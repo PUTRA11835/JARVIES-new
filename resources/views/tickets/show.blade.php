@@ -183,10 +183,6 @@
                 <span class="font-medium text-gray-700">{{ $customerName }}</span>
                 <span class="text-gray-300">|</span>
                 <span>{{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB</span>
-                @if($agentName !== 'Unassigned')
-                <span class="text-gray-300">|</span>
-                <span>Agent: <span class="font-medium">{{ $agentName }}</span></span>
-                @endif
             </div>
         </div>
 
@@ -295,32 +291,6 @@
                         {{ $ticket->ticket_type ?? '—' }}
                     </p>
                 </div>
-
-                {{-- Agent (PIC) --}}
-                <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        {{ $agentName }}
-                    </p>
-                </div>
-
-                {{-- Team Members --}}
-                @if($ticket->members->count() > 0)
-                <div class="pt-3 border-t border-gray-100">
-                    <label class="text-xs font-semibold text-gray-500 mb-2 block">Team Members</label>
-                    <div class="space-y-1">
-                        @foreach($ticket->members as $member)
-                        @php
-                            $mName = trim(($member->basicData->first_name ?? '') . ' ' . ($member->basicData->last_name ?? ''));
-                            if (empty($mName)) $mName = 'Member';
-                        @endphp
-                        <div class="px-2.5 py-1.5 bg-blue-50 rounded-lg">
-                            <span class="text-xs text-blue-700 font-medium">{{ $mName }}</span>
-                        </div>
-                        @endforeach
-                    </div>
-                </div>
-                @endif
 
                 {{-- Divider --}}
                 <div class="pt-3 border-t border-gray-100 space-y-3">

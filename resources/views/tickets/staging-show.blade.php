@@ -65,9 +65,12 @@
         'Very High' => 'bg-red-100 text-red-800 border-red-300',
     ];
     $customerName = session('user.company_name') ?? session('user.name') ?? session('user.email') ?? 'Customer';
-    $bodyHtml = $staging->body ?? '';
-    $hasBody  = trim(strip_tags($bodyHtml)) !== '';
-    $ccList   = json_decode($staging->cc_emails ?? '[]', true) ?? [];
+    $bodyHtml        = $staging->body ?? '';
+    // Gambar sudah disimpan sebagai file lokal dengan URL — tampilkan langsung
+    $bodyHtmlDisplay = $bodyHtml;
+    $hasBody         = trim(strip_tags($bodyHtmlDisplay)) !== '';
+    $ccList          = json_decode($staging->cc_emails ?? '[]', true) ?? [];
+    $attachmentNames = json_decode($staging->attachment_names ?? '[]', true) ?? [];
 @endphp
 
 <div class="flex gap-6" style="height: calc(100vh - 140px); min-height: 500px;">
@@ -139,10 +142,33 @@
                     <div class="message-bubble bubble-customer p-3 inline-block text-left">
                         @if($hasBody)
                             <div class="message-content text-sm text-gray-700">
-                                {!! $bodyHtml !!}
+                                {!! $bodyHtmlDisplay !!}
                             </div>
                         @else
                             <p class="text-sm text-gray-400 italic">No message body provided.</p>
+                        @endif
+
+                        {{-- File attachments: tampilkan download links --}}
+                        @if(count($attachmentNames) > 0)
+                        <div class="mt-3 pt-3 border-t border-blue-100 space-y-1">
+                            @foreach($attachmentNames as $fileName)
+                            @php
+                                $safeName    = preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName);
+                                $localPath   = storage_path('app/staging-attachments/' . $staging->id . '/' . $safeName);
+                                $canDownload = file_exists($localPath);
+                            @endphp
+                            @if($canDownload)
+                            <a href="{{ route('tickets.staging.attachment.download', ['id' => $staging->id, 'filename' => $fileName]) }}"
+                               download="{{ $fileName }}"
+                               class="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                                </svg>
+                                {{ $fileName }}
+                            </a>
+                            @endif
+                            @endforeach
+                        </div>
                         @endif
 
                         {{-- Additional info block --}}
@@ -234,10 +260,7 @@
                     <p class="text-xs text-gray-400 italic px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">—</p>
                 </div>
 
-                <div>
-                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Agent (PIC)</label>
-                    <p class="text-xs text-gray-400 italic px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">Unassigned</p>
-                </div>
+
 
                 <div class="pt-3 border-t border-gray-100 space-y-3">
                     <div>

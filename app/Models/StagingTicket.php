@@ -29,6 +29,7 @@ class StagingTicket extends Model
         'validated_by',
         'validated_at',
         'ticket_id',
+        'attachment_names',
     ];
 
     protected $casts = [

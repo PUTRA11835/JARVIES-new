@@ -17,19 +17,13 @@ class CustomerApiController extends Controller
 {
     private function ecosystemBase(): string
     {
-        // ECOSYSTEM_URL is the bare host (e.g. http://127.0.0.1:8000).
-        // Fall back to ECOSYSTEM_API_URL (with /api) for backward compatibility.
-        $base = env('ECOSYSTEM_URL');
-        if ($base) {
-            return rtrim($base, '/') . '/api';
-        }
-
-        return rtrim(env('ECOSYSTEM_API_URL', 'http://127.0.0.1:8000/api'), '/');
+        // config('ecosystem.url') = ECOSYSTEM_URL from .env (full API base, e.g. https://ecosystem.domain.com/api)
+        return rtrim(config('ecosystem.url') ?: config('services.ecosystem.url', ''), '/');
     }
 
     private function apiKey(): ?string
     {
-        return env('ECOSYSTEM_API_KEY') ?? env('EXTERNAL_TICKET_API_KEY');
+        return config('ecosystem.api_key') ?: env('ECOSYSTEM_API_KEY') ?: env('EXTERNAL_TICKET_API_KEY');
     }
 
     /**
@@ -75,7 +69,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/contacts");
+        return $this->proxy("/jarvies/customers/{$customerId}/contacts");
     }
 
     public function contact(int $customerId, int $contactId): JsonResponse
@@ -84,7 +78,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/contacts/{$contactId}");
+        return $this->proxy("/jarvies/customers/{$customerId}/contacts/{$contactId}");
     }
 
     // =========================================================================
@@ -97,7 +91,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/addresses");
+        return $this->proxy("/jarvies/customers/{$customerId}/addresses");
     }
 
     public function address(int $customerId, int $addressId): JsonResponse
@@ -106,7 +100,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/addresses/{$addressId}");
+        return $this->proxy("/jarvies/customers/{$customerId}/addresses/{$addressId}");
     }
 
     // =========================================================================
@@ -119,7 +113,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/identifications");
+        return $this->proxy("/jarvies/customers/{$customerId}/identifications");
     }
 
     public function identification(int $customerId, int $identificationId): JsonResponse
@@ -128,7 +122,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/identifications/{$identificationId}");
+        return $this->proxy("/jarvies/customers/{$customerId}/identifications/{$identificationId}");
     }
 
     // =========================================================================
@@ -141,7 +135,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/banks");
+        return $this->proxy("/jarvies/customers/{$customerId}/banks");
     }
 
     public function bank(int $customerId, int $bankId): JsonResponse
@@ -150,7 +144,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/banks/{$bankId}");
+        return $this->proxy("/jarvies/customers/{$customerId}/banks/{$bankId}");
     }
 
     // =========================================================================
@@ -163,7 +157,7 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/attachments");
+        return $this->proxy("/jarvies/customers/{$customerId}/attachments");
     }
 
     public function attachment(int $customerId, int $attachmentId): JsonResponse
@@ -172,6 +166,6 @@ class CustomerApiController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
-        return $this->proxy("/customers/{$customerId}/attachments/{$attachmentId}");
+        return $this->proxy("/jarvies/customers/{$customerId}/attachments/{$attachmentId}");
     }
 }

@@ -325,13 +325,13 @@
                         <button onclick="toggleUserDropdown()"
                                 class="flex items-center gap-3 px-4 py-2.5 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-red-800 transition-all">
                             <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-red-700 to-red-900 text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0">
-                                {{ strtoupper(substr(session('user.company_name', session('user.name', 'U')), 0, 2)) }}
+                                {{ strtoupper(substr(session('user.name', session('user.company_name', 'U')), 0, 2)) }}
                             </div>
                             <div class="text-left hidden xl:block">
                                 <div class="text-sm font-bold text-gray-900 leading-none mb-0.5">
-                                    {{ Str::limit(session('user.company_name', session('user.name', 'User')), 18) }}
+                                    {{ Str::limit(session('user.name', session('user.company_name', 'User')), 18) }}
                                 </div>
-                                <div class="text-xs text-gray-500">{{ session('user.role.name', 'Customer') }}</div>
+                                <div class="text-xs text-gray-500">{{ Str::limit(session('user.company_name', 'Jarvies'), 22) }}</div>
                             </div>
                             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -344,9 +344,9 @@
                             <!-- User Info Header -->
                             <div class="px-4 py-3 border-b border-gray-100 mb-1">
                                 <p class="text-sm font-bold text-gray-900 truncate">
-                                    {{ session('user.company_name', session('user.name', 'User')) }}
+                                    {{ session('user.name', session('user.company_name', 'User')) }}
                                 </p>
-                                <p class="text-xs text-gray-400">{{ session('user.role.name', 'Customer') }}</p>
+                                <p class="text-xs text-gray-400 truncate">{{ session('user.company_name', 'Jarvies') }}</p>
                             </div>
                             <!-- Profile -->
                             <a href="{{ route('profile') }}"

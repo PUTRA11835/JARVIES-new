@@ -24,12 +24,50 @@ class StagingTicketService
      * @param  string|null $customerEmail  Email customer (untuk referensi)
      * @return StagingTicket
      */
-    public function createFromWeb(array $data, int $customerId, ?string $customerEmail = null, ?string $senderName = null): StagingTicket
+    /**
+     * Ekstrak base64 inline image dari HTML, simpan sebagai file di storage,
+     * dan ganti src dengan URL yang bisa diakses via route.
+     * Ini menghindari menyimpan data besar di DB (mencegah max_allowed_packet).
+     *
+     * @return array{html: string, saved_images: string[]}
+     */
+    private function extractAndSaveImages(?string $html, int $stagingId): array
     {
+        if (!$html) return ['html' => $html, 'saved_images' => []];
+
+        $savedImages = [];
+        $dir = storage_path('app/staging-images/' . $stagingId);
+
+        $processedHtml = preg_replace_callback(
+            '/src="data:([^;]+);base64,([^"]+)"/i',
+            function ($matches) use ($dir, $stagingId, &$savedImages) {
+                $mimeType  = $matches[1]; // e.g. image/png
+                $base64    = $matches[2];
+                $ext       = explode('/', $mimeType)[1] ?? 'png';
+                $ext       = preg_replace('/[^a-z0-9]/i', '', $ext); // sanitize
+                $uuid      = \Illuminate\Support\Str::uuid()->toString();
+                $filename  = $uuid . '.' . $ext;
+
+                if (!is_dir($dir)) mkdir($dir, 0755, true);
+                file_put_contents($dir . '/' . $filename, base64_decode($base64));
+                $savedImages[] = $filename;
+
+                $url = route('tickets.staging.image.serve', ['id' => $stagingId, 'filename' => $uuid . '.' . $ext]);
+                return 'src="' . $url . '"';
+            },
+            $html
+        );
+
+        return ['html' => $processedHtml, 'saved_images' => $savedImages];
+    }
+
+    public function createFromWeb(array $data, int $customerId, ?string $customerEmail = null, ?string $senderName = null, array $fileNames = []): StagingTicket
+    {
+        // Simpan dulu tanpa body agar dapat ID staging
         $staging = StagingTicket::create([
             'customer_id'        => $customerId,
             'description'        => $data['description'],
-            'body'               => $data['body'] ?? null,
+            'body'               => null, // akan diupdate setelah proses gambar
             'cc_emails'          => isset($data['cc_emails'])
                                        ? (is_array($data['cc_emails']) ? json_encode($data['cc_emails']) : $data['cc_emails'])
                                        : null,
@@ -45,7 +83,16 @@ class StagingTicketService
             'email_thread_id'    => $data['email_thread_id'] ?? null,
             'email_message_id'   => $data['email_message_id'] ?? null,
             'customer_thread_id' => $data['email_thread_id'] ?? null,
+            'attachment_names'   => !empty($fileNames) ? json_encode($fileNames) : null,
         ]);
+
+        // Proses gambar setelah dapat staging ID, lalu update body
+        $rawBody = $data['body_html'] ?? $data['body'] ?? null;
+        if ($rawBody) {
+            $result = $this->extractAndSaveImages($rawBody, $staging->id);
+            $staging->body = $result['html'];
+            $staging->save();
+        }
 
         Log::info('StagingTicketService: new staging ticket created', [
             'staging_id'  => $staging->id,

@@ -12,7 +12,7 @@ class EmployeeController extends Controller
     
     public function __construct()
     {
-        $this->apiBaseUrl = env('ECOSYSTEM_API_URL', 'http://localhost:8000/api');
+        $this->apiBaseUrl = rtrim(config('ecosystem.url') ?: config('services.ecosystem.url', ''), '/');
     }
     
     public function index(Request $request)

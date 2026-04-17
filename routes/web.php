@@ -70,6 +70,8 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/ajax/fetch', [TicketController::class, 'getTickets'])->name('ajax.fetch');
         Route::get('/staging', [TicketController::class, 'getStagingTickets'])->name('staging');
         Route::get('/staging/{id}', [TicketController::class, 'showStaging'])->name('staging.show')->whereNumber('id');
+        Route::get('/staging/{id}/attachments/{filename}', [TicketController::class, 'downloadStagingAttachment'])->name('staging.attachment.download')->whereNumber('id');
+        Route::get('/staging-image/{id}/{filename}', [TicketController::class, 'serveStagingImage'])->name('staging.image.serve')->whereNumber('id');
         Route::get('/pending', [TicketController::class, 'pendingPage'])->name('pending');
         Route::get('/{id}/messages', [TicketController::class, 'getMessages'])->name('messages')->whereNumber('id');
         Route::post('/{id}/comment', [TicketController::class, 'addComment'])->name('comment')->whereNumber('id');
