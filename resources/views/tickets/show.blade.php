@@ -118,6 +118,13 @@
 .email-html-body td,
 .email-html-body th            { border: 1px solid #e5e7eb; padding: 4px 8px; }
 
+/* CC tag pills */
+.cc-tag { display:inline-flex; align-items:center; gap:3px; background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; font-size:11px; border-radius:9999px; padding:1px 8px; max-width:200px; }
+.cc-tag span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-tag button { color:#93c5fd; background:none; border:none; cursor:pointer; line-height:1; padding:0; margin-left:2px; font-size:13px; }
+.cc-tag button:hover { color:#ef4444; }
+#ccRow { border-bottom: 1px solid #e5e7eb; }
+
 /* Quill message content */
 .message-content p             { margin-bottom: 0.25rem; }
 .message-content p:last-child  { margin-bottom: 0; }
@@ -223,6 +230,33 @@
             </div>
             @endif
             </div>
+
+            {{-- To row (email channel only, read-only) --}}
+            @if(($ticket->email_thread_id || $ticket->channel === 'email') && session('user.email'))
+            <div class="px-4 pt-1.5">
+                <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 border-b border-gray-100">
+                    <span class="font-semibold text-gray-500 w-5 shrink-0">To</span>
+                    <span class="text-gray-700">{{ session('user.email') }}</span>
+                </div>
+            </div>
+            @endif
+
+            {{-- CC row (email channel only) --}}
+            @if($ticket->email_thread_id || $ticket->channel === 'email')
+            <div class="px-4 pt-1" id="ccRow">
+                <div class="flex flex-wrap items-center gap-1 min-h-[30px] px-2 py-1 cursor-text"
+                     onclick="document.getElementById('ccInput').focus()">
+                    <span class="text-[11px] font-semibold text-gray-500 w-5 shrink-0">CC</span>
+                    <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                    <input type="text" id="ccInput"
+                           placeholder="Add email, press Enter…"
+                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-40 placeholder-gray-300 py-0.5"
+                           onkeydown="handleCcKeydown(event)"
+                           onblur="commitCcInput()"
+                           onpaste="handleCcPaste(event)">
+                </div>
+            </div>
+            @endif
 
             <div class="px-4 pt-2 pb-2">
                 <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
@@ -341,7 +375,18 @@ const ticketId   = {{ $ticket->ticket_id }};
 const ticketDescription  = @json($ticket->description ?? '');
 const ticketCustomerName = @json(session('user.name') ?? session('user.company_name') ?? 'Customer');
 const ticketCreatedAt    = @json($ticket->created_at->toIso8601String());
-const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+const isEmailChannel     = {{ ($ticket->email_thread_id || $ticket->channel === 'email') ? 'true' : 'false' }};
+
+// CC state — dinormalisasi dari ticket.cc_emails (bisa string atau {address,name})
+let ccEmails = @json(
+    collect($ticket->cc_emails ?? [])
+        ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string) $c)
+        ->filter()
+        ->values()
+        ->all()
+);
+
+let CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 
 let lastMessageId = null;
 let allSidebarTickets  = [];
@@ -410,17 +455,67 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('attachmentInput').addEventListener('change', function () {
         const maxSize = 10 * 1024 * 1024;
         Array.from(this.files).forEach(file => {
-            if (file.size > maxSize) { showNotification(`${file.name} terlalu besar (maks 10 MB)`, 'error'); return; }
+            if (file.size > maxSize) { showNotification(`${file.name} is too large (max 10 MB)`, 'error'); return; }
             if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) selectedFiles.push(file);
         });
         this.value = '';
         renderAttachmentPreview();
     });
 
+    renderCcTags();
     loadMessages();
     loadSidebarTickets();
     startPolling();
 });
+
+// ==================== CC MANAGEMENT ====================
+function renderCcTags() {
+    const container = document.getElementById('ccTagsContainer');
+    if (!container) return;
+    container.innerHTML = ccEmails.map((email, i) =>
+        `<span class="cc-tag">
+            <span>${escHtml(email)}</span>
+            <button type="button" onclick="removeCcTag(${i})" title="Remove">&times;</button>
+        </span>`
+    ).join('');
+}
+
+function removeCcTag(index) {
+    ccEmails.splice(index, 1);
+    renderCcTags();
+}
+
+function handleCcKeydown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        commitCcInput();
+    } else if (e.key === 'Backspace' && e.target.value === '' && ccEmails.length > 0) {
+        ccEmails.pop();
+        renderCcTags();
+    }
+}
+
+function commitCcInput() {
+    const input = document.getElementById('ccInput');
+    if (!input) return;
+    const parts = input.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    let added = false;
+    for (const email of parts) {
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !ccEmails.includes(email)) {
+            ccEmails.push(email);
+            added = true;
+        }
+    }
+    if (added) renderCcTags();
+    input.value = '';
+}
+
+function handleCcPaste(e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const input = document.getElementById('ccInput');
+    if (input) { input.value = text; commitCcInput(); }
+}
 
 // ==================== POLLING ====================
 function startPolling() {
@@ -729,17 +824,25 @@ async function sendReply() {
     const spinner = document.getElementById('sendSpinner');
     if (btn) { btn.disabled = true; icon?.classList.add('hidden'); spinner?.classList.remove('hidden'); }
 
+    // Selalu ambil CSRF token terbaru dari meta tag untuk hindari mismatch jika session di-refresh
+    CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
     try {
         let body, headers;
         if (hasFiles) {
             const fd = new FormData();
             fd.append('comment', comment);
             fd.append('comment_html', commentHtml);
+            if (isEmailChannel) fd.append('cc_emails', JSON.stringify(ccEmails));
             selectedFiles.forEach(f => fd.append('attachments[]', f));
             body = fd;
             headers = { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN };
         } else {
-            body = JSON.stringify({ comment, comment_html: commentHtml });
+            body = JSON.stringify({
+                comment,
+                comment_html: commentHtml,
+                ...(isEmailChannel ? { cc_emails: ccEmails } : {}),
+            });
             headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN };
         }
 
@@ -749,6 +852,14 @@ async function sendReply() {
             credentials: 'same-origin',
             body
         });
+
+        // 419 = CSRF mismatch — session expired, minta user reload
+        if (res.status === 419) {
+            showNotification('Session expired. Page will reload automatically...', 'error');
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
+
         const data = await res.json();
 
         if (data.success) {
@@ -757,7 +868,6 @@ async function sendReply() {
             await loadMessages();
             refreshIndicator();
             showNotification('Message sent.', 'success');
-
         } else {
             showNotification(data.message || 'Failed to send message.', 'error');
         }

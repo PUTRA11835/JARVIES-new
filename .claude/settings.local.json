@@ -6,7 +6,8 @@
       "Read(//c/EcoSystem-2/**)",
       "Read(//c/EcoSystemF/**)",
       "Bash(grep -n \"internet_message_id\\\\|jarvies.api_key\\\\|JarviesApiKey\" /c/EcoSystem-2/app/Http/Middleware/*.php)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(grep -v \"^\\\\s*//\")"
     ]
   }
 }

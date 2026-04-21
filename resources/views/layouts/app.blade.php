@@ -595,8 +595,8 @@
     });
 
     /* ── Notification Bell ── */
-    var _bellNotifications = []; // [{ ticket_id, ticket_number, subject, updated_at, read }]
-    var _ticketStates = {};       // { ticket_id: updated_at_string }
+    var _bellNotifications = []; // [{ ticket_id, ticket_number, subject, updated_at, read, event_type }]
+    var _ticketStates = {};       // { ticket_id: { updated_at, jarvies_status, status, last_message_at } }
     var _bellInitialized = false;
 
     function _getNotifPrefs() {
@@ -652,7 +652,7 @@
                     '<span class="notif-dot mt-1 flex-shrink-0"></span>' +
                     '<div class="flex-1 min-w-0">' +
                         '<p class="text-sm font-semibold text-gray-800 truncate">' + _escHtml(n.subject || 'Ticket #' + n.ticket_number) + '</p>' +
-                        '<p class="text-xs text-gray-500 mt-0.5">Ticket updated &bull; ' + timeAgo + '</p>' +
+                        '<p class="text-xs text-gray-500 mt-0.5">' + _escHtml(_notifLabel(n.event_type)) + ' &bull; ' + timeAgo + '</p>' +
                     '</div>' +
                 '</a>';
         });
@@ -661,6 +661,20 @@
 
     function _escHtml(str) {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function _notifLabel(eventType) {
+        switch (eventType) {
+            case 'validated':    return 'Ticket validated';
+            case 'rejected':     return 'Ticket rejected';
+            case 'new_reply':    return 'New reply from Helpdesk';
+            case 'closed':       return 'Ticket closed';
+            case 'reopened':     return 'Ticket reopened';
+            case 'hold':         return 'Ticket on hold';
+            case 'in_progress':  return 'Ticket in progress';
+            case 'cancelled':    return 'Ticket cancelled';
+            default:             return 'Ticket updated';
+        }
     }
 
     function _timeAgo(isoStr) {
@@ -710,8 +724,14 @@
 
             if (!_bellInitialized) {
                 // First load: populate states without triggering notifications
+                // Also migrate old string-format states to new object format
                 tickets.forEach(function(t) {
-                    _ticketStates[t.ticket_id] = t.updated_at;
+                    _ticketStates[t.ticket_id] = {
+                        updated_at:      t.updated_at,
+                        jarvies_status:  t.jarvies_status,
+                        status:          t.status,
+                        last_message_at: t.last_message_at,
+                    };
                 });
                 _bellInitialized = true;
                 _saveBellState();
@@ -725,34 +745,67 @@
                 var curr = t.updated_at;
                 if (prev === undefined) {
                     // Brand new ticket — no notification (customer submitted it)
-                    _ticketStates[t.ticket_id] = curr;
+                    _ticketStates[t.ticket_id] = {
+                        updated_at:      curr,
+                        jarvies_status:  t.jarvies_status,
+                        status:          t.status,
+                        last_message_at: t.last_message_at,
+                    };
                     return;
                 }
-                if (prev !== curr) {
-                    // Ticket was updated since last check
-                    _ticketStates[t.ticket_id] = curr;
-                    // Check if already in list
+                // Migrate old string-format state (from previous version)
+                if (typeof prev === 'string') {
+                    prev = { updated_at: prev, jarvies_status: null, status: null, last_message_at: null };
+                    _ticketStates[t.ticket_id] = prev;
+                }
+                if (prev.updated_at !== curr) {
+                    // Determine event type from what changed
+                    var eventType = 'updated';
+                    if (t.last_message_at && t.last_message_at !== prev.last_message_at) {
+                        eventType = 'new_reply';
+                    } else if (t.jarvies_status !== prev.jarvies_status) {
+                        var js = t.jarvies_status;
+                        if (js === 'rejected') eventType = 'rejected';
+                        else if (js === 'open' || js === 'validated') eventType = 'validated';
+                        else eventType = 'updated';
+                    } else if (t.status !== prev.status) {
+                        var st = t.status;
+                        if (st === 'closed')      eventType = 'closed';
+                        else if (st === 'hold')   eventType = 'hold';
+                        else if (st === 'in_progress') eventType = 'in_progress';
+                        else if (st === 'cancel') eventType = 'cancelled';
+                        else if (st === 'open')   eventType = 'reopened';
+                        else eventType = 'updated';
+                    }
+
+                    // Update stored state
+                    _ticketStates[t.ticket_id] = {
+                        updated_at:      curr,
+                        jarvies_status:  t.jarvies_status,
+                        status:          t.status,
+                        last_message_at: t.last_message_at,
+                    };
+
+                    var ticketLabel = 'Ticket #' + (t.ticket_number || t.ticket_id);
                     var existing = _bellNotifications.find(function(n) { return n.ticket_id == t.ticket_id; });
                     var notifObj = {
                         ticket_id:     t.ticket_id,
                         ticket_number: t.ticket_number || t.ticket_id,
-                        subject:       t.subject || t.description || ('Ticket #' + (t.ticket_number || t.ticket_id)),
+                        subject:       t.subject || t.description || ticketLabel,
                         updated_at:    curr,
                         read:          false,
+                        event_type:    eventType,
                     };
                     if (existing) {
-                        // Update and mark unread
                         Object.assign(existing, notifObj);
                     } else {
                         _bellNotifications.unshift(notifObj);
-                        // Show toast notification
                         showToast(
-                            'Ticket #' + (t.ticket_number || t.ticket_id) + ' has been updated.',
+                            ticketLabel + ': ' + _notifLabel(eventType),
                             'info',
-                            'Ticket Update'
+                            'Ticket Notification'
                         );
                     }
-                    // Keep max 20
                     if (_bellNotifications.length > 20) _bellNotifications.pop();
                     hasNew = true;
                 }

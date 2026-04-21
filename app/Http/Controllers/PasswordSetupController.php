@@ -271,7 +271,7 @@ class PasswordSetupController extends Controller
         </td></tr>
         <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
           <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-            &copy; {$appName} &mdash; PT Eclectic Consulting Yogyakarta<br>
+            &copy; {$appName} &mdash; PT Eclectic Consulting<br>
             <a href="{$appUrl}" style="color:#9ca3af;">{$appUrl}</a>
           </p>
         </td></tr>
@@ -323,7 +323,7 @@ HTML;
         </td></tr>
         <tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
           <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-            &copy; {$appName} &mdash; PT Eclectic Consulting Yogyakarta<br>
+            &copy; {$appName} &mdash; PT Eclectic Consulting<br>
             <a href="{$appUrl}" style="color:#9ca3af;">{$appUrl}</a>
           </p>
         </td></tr>

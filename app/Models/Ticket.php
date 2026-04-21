@@ -38,6 +38,7 @@ class Ticket extends Model
         'man_days'        => 'decimal:2',
         'wait_close'      => 'decimal:2',
         'last_message_at' => 'datetime',
+        'cc_emails'       => 'array',
     ];
 
     // Relasi ke Customer

@@ -193,7 +193,7 @@
         function showToast(message, type, title, duration) {
             type = type || 'error'; duration = duration || 5000;
             var icons = { success:'<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>', error:'<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>' };
-            var titles = { success:'Berhasil', error:'Terjadi Kesalahan' };
+            var titles = { success:'Success', error:'An Error Occurred' };
             var container = document.getElementById('toast-container');
             var toast = document.createElement('div');
             toast.className = 'toast toast-' + type;

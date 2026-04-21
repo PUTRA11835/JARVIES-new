@@ -588,16 +588,8 @@ class TicketController extends Controller
                 $multipart[] = ['name' => 'contact_id', 'contents' => (string) $user['contact_id']];
             }
 
-            // File attachments — dikirim ulang ke EcoSystem dengan key 'attachments[]'
-            // Binary sudah dibaca di STEP 2, tidak perlu baca ulang dari request
-            foreach ($emailFileAttachments as $file) {
-                $multipart[] = [
-                    'name'     => 'attachments[]',
-                    'contents' => $file['content'],
-                    'filename' => $file['name'],
-                    'headers'  => ['Content-Type' => $file['mime']],
-                ];
-            }
+            // File attachment TIDAK dikirim ke EcoSystem via multipart.
+            // EcoSystem mengambil attachment langsung dari Graph API menggunakan internet_message_id.
 
             try {
                 $ecoResponse = Http::withHeaders(['X-Api-Key' => config('ecosystem.api_key')])
@@ -1635,6 +1627,7 @@ class TicketController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'comment'       => 'nullable|string|max:5000',
+                'cc_emails'     => 'nullable',
                 'attachments'   => 'nullable|array|max:5',
                 'attachments.*' => 'file|max:10240|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip,rar,csv,mp4,mov',
             ]);
@@ -1646,6 +1639,13 @@ class TicketController extends Controller
                     'errors'  => $validator->errors(),
                 ], 422);
             }
+
+            // Parse cc_emails: bisa JSON string atau array langsung
+            $rawCc = $request->input('cc_emails');
+            if (is_string($rawCc)) {
+                $rawCc = json_decode($rawCc, true) ?? [];
+            }
+            $ccEmails = is_array($rawCc) ? array_filter($rawCc) : [];
 
             $hasText  = $request->filled('comment');
             $hasFiles = $request->hasFile('attachments');
@@ -1740,19 +1740,23 @@ class TicketController extends Controller
                 $relayHtml = $htmlBody
                     ?: ('<p>' . nl2br(htmlspecialchars($request->input('comment', ''))) . '</p>');
 
-                $ticketCcEmails = [];
-                if (!empty($ticket->cc_emails)) {
-                    $decoded = is_array($ticket->cc_emails)
-                        ? $ticket->cc_emails
-                        : json_decode($ticket->cc_emails, true);
-                    foreach ((array) $decoded as $cc) {
-                        if (is_array($cc)) {
-                            $addr = $cc['address'] ?? $cc['email'] ?? null;
-                        } else {
-                            $addr = $cc;
-                        }
-                        if ($addr && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
-                            $ticketCcEmails[] = $addr;
+                // Gunakan CC dari request jika dikirim (customer update CC di compose area),
+                // jika tidak ada gunakan yang tersimpan di ticket.cc_emails.
+                // Update ticket.cc_emails agar persistent untuk reply berikutnya.
+                if (!empty($ccEmails)) {
+                    $ticketCcEmails = array_values(array_filter($ccEmails, fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
+                    $ticket->update(['cc_emails' => $ticketCcEmails]);
+                } else {
+                    $ticketCcEmails = [];
+                    if (!empty($ticket->cc_emails)) {
+                        $decoded = is_array($ticket->cc_emails)
+                            ? $ticket->cc_emails
+                            : json_decode($ticket->cc_emails, true);
+                        foreach ((array) $decoded as $cc) {
+                            $addr = is_array($cc) ? ($cc['address'] ?? $cc['email'] ?? null) : $cc;
+                            if ($addr && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                                $ticketCcEmails[] = $addr;
+                            }
                         }
                     }
                 }
