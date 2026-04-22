@@ -69,7 +69,11 @@
     // Gambar sudah disimpan sebagai file lokal dengan URL — tampilkan langsung
     $bodyHtmlDisplay = $bodyHtml;
     $hasBody         = trim(strip_tags($bodyHtmlDisplay)) !== '';
-    $ccList          = json_decode($staging->cc_emails ?? '[]', true) ?? [];
+    $ccList          = collect(json_decode($staging->cc_emails ?? '[]', true) ?? [])
+                        ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
+                        ->filter()
+                        ->values()
+                        ->all();
     $attachmentNames = json_decode($staging->attachment_names ?? '[]', true) ?? [];
 @endphp
 
