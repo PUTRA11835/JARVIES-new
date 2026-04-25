@@ -65,16 +65,13 @@
         'Very High' => 'bg-red-100 text-red-800 border-red-300',
     ];
     $customerName = session('user.company_name') ?? session('user.name') ?? session('user.email') ?? 'Customer';
-    $bodyHtml        = $staging->body ?? '';
-    // Gambar sudah disimpan sebagai file lokal dengan URL — tampilkan langsung
-    $bodyHtmlDisplay = $bodyHtml;
-    $hasBody         = trim(strip_tags($bodyHtmlDisplay)) !== '';
-    $ccList          = collect(json_decode($staging->cc_emails ?? '[]', true) ?? [])
-                        ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
-                        ->filter()
-                        ->values()
-                        ->all();
-    $attachmentNames = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+    $hasBody      = trim(strip_tags($bodyHtml ?? '')) !== '';
+    $ccList       = collect(json_decode($staging->cc_emails ?? '[]', true) ?? [])
+                      ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
+                      ->filter()->values()->all();
+    // Local file attachments (web-form uploads stored in JARVIES storage)
+    $rawAttachments   = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+    $localAttachments = array_values(array_filter($rawAttachments, fn($a) => is_string($a)));
 @endphp
 
 <div class="flex gap-6" style="height: calc(100vh - 140px); min-height: 500px;">
@@ -146,16 +143,40 @@
                     <div class="message-bubble bubble-customer p-3 inline-block text-left">
                         @if($hasBody)
                             <div class="message-content text-sm text-gray-700">
-                                {!! $bodyHtmlDisplay !!}
+                                {!! $bodyHtml !!}
                             </div>
                         @else
                             <p class="text-sm text-gray-400 italic">No message body provided.</p>
                         @endif
 
-                        {{-- File attachments: tampilkan download links --}}
-                        @if(count($attachmentNames) > 0)
+                        {{-- Email attachments from EcoSystem API --}}
+                        @if(count($attachments) > 0)
+                        <div class="mt-3 pt-3 border-t border-blue-100 space-y-1.5">
+                            @foreach($attachments as $att)
+                            @php
+                                $size      = $att['size'] ?? 0;
+                                $sizeLabel = $size > 1048576
+                                    ? round($size / 1048576, 1) . ' MB'
+                                    : ($size > 1024 ? round($size / 1024) . ' KB' : $size . ' B');
+                            @endphp
+                            <a href="{{ $att['url'] }}"
+                               target="_blank"
+                               rel="noopener"
+                               class="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                <span>{{ $att['name'] }}</span>
+                                <span class="text-gray-400">({{ $sizeLabel }})</span>
+                            </a>
+                            @endforeach
+                        </div>
+                        @endif
+
+                        {{-- Local file attachments (web-form uploads) --}}
+                        @if(count($localAttachments) > 0)
                         <div class="mt-3 pt-3 border-t border-blue-100 space-y-1">
-                            @foreach($attachmentNames as $fileName)
+                            @foreach($localAttachments as $fileName)
                             @php
                                 $safeName    = preg_replace('/[^A-Za-z0-9.\-_]/', '_', $fileName);
                                 $localPath   = storage_path('app/staging-attachments/' . $staging->id . '/' . $safeName);
@@ -166,7 +187,7 @@
                                download="{{ $fileName }}"
                                class="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline">
                                 <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                                 </svg>
                                 {{ $fileName }}
                             </a>

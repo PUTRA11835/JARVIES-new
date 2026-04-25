@@ -71,6 +71,8 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/staging', [TicketController::class, 'getStagingTickets'])->name('staging');
         Route::get('/staging/{id}', [TicketController::class, 'showStaging'])->name('staging.show')->whereNumber('id');
         Route::get('/staging/{id}/attachments/{filename}', [TicketController::class, 'downloadStagingAttachment'])->name('staging.attachment.download')->whereNumber('id');
+        Route::get('/staging/{id}/inline/{index}', [TicketController::class, 'serveStagingGraphInline'])->name('staging.graph.inline')->whereNumber(['id', 'index']);
+        Route::get('/staging/{id}/graph-attachment/{index}', [TicketController::class, 'serveStagingGraphDownload'])->name('staging.graph.download')->whereNumber(['id', 'index']);
         Route::get('/staging-image/{id}/{filename}', [TicketController::class, 'serveStagingImage'])->name('staging.image.serve')->whereNumber('id');
         Route::get('/pending', [TicketController::class, 'pendingPage'])->name('pending');
         Route::get('/{id}/messages', [TicketController::class, 'getMessages'])->name('messages')->whereNumber('id');

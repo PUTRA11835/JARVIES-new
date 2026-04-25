@@ -76,10 +76,7 @@ class EmailController extends Controller
         Http::withToken($token)->patch("{$baseUrl}{$path}", $body);
     }
 
-    /**
-     * Ekstrak hanya bagian reply baru dari body email HTML.
-     * Membuang quoted text (<blockquote>, gmail_quote, Outlook divider, dll).
-     */
+    /** Strips quoted-reply elements from HTML and returns plain text. Used for ticket messages. */
     private function extractReplyBody(string $html): string
     {
         if (empty($html)) return '';
@@ -92,36 +89,68 @@ class EmailController extends Controller
             LIBXML_NOERROR | LIBXML_NOWARNING
         );
 
-        $xpath = new \DOMXPath($dom);
+        $this->removeQuotedNodes($dom);
 
-        // Elemen yang mengandung quoted/previous messages — hapus semua
-        $removeSelectors = [
-            '//blockquote',                                   // RFC standard, semua klien
-            '//*[contains(@class,"gmail_quote")]',            // Gmail
-            '//*[contains(@class,"yahoo_quoted")]',           // Yahoo Mail
-            '//*[contains(@class,"moz-cite-prefix")]',        // Thunderbird
-            '//*[@id="divRplyFwdMsg"]',                       // Outlook Web
-            '//*[contains(@class,"OutlookMessageHeader")]',   // Outlook Desktop
-            '//*[contains(@class,"x_gmail_quote")]',          // Gmail via Outlook
-        ];
-
-        foreach ($removeSelectors as $selector) {
-            foreach (iterator_to_array($xpath->query($selector)) as $node) {
-                $node->parentNode?->removeChild($node);
-            }
-        }
-
-        // Ambil teks bersih dari <body>
         $bodyNode = $dom->getElementsByTagName('body')->item(0);
         $text = $bodyNode ? trim($bodyNode->textContent) : strip_tags($html);
-
-        // Hapus baris "On [date] ... wrote:" yang masih tersisa
         $text = preg_replace('/^On .{5,200}wrote:\s*$/m', '', $text);
-
-        // Bersihkan baris kosong berlebihan
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
 
         return trim($text);
+    }
+
+    /**
+     * Strips quoted-reply elements from HTML and returns the remaining inner HTML.
+     * Handles the case where Graph API returns a complete HTML document (with <html><body> tags).
+     */
+    private function extractHtmlBody(string $html): string
+    {
+        if (empty($html)) return '';
+
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+
+        // Graph API often returns a full HTML document — load it directly.
+        // Only wrap in a shell when the content is a fragment (no <body> tag).
+        $encoded = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+        if (stripos($html, '<body') !== false) {
+            @$dom->loadHTML($encoded, LIBXML_NOERROR | LIBXML_NOWARNING);
+        } else {
+            @$dom->loadHTML(
+                '<html><head><meta charset="utf-8"/></head><body>' . $encoded . '</body></html>',
+                LIBXML_NOERROR | LIBXML_NOWARNING
+            );
+        }
+
+        $this->removeQuotedNodes($dom);
+
+        $bodyNode = $dom->getElementsByTagName('body')->item(0);
+        if (!$bodyNode) return strip_tags($html);
+
+        $result = '';
+        foreach ($bodyNode->childNodes as $child) {
+            $result .= $dom->saveHTML($child);
+        }
+
+        return trim($result);
+    }
+
+    private function removeQuotedNodes(\DOMDocument $dom): void
+    {
+        $xpath = new \DOMXPath($dom);
+        $selectors = [
+            '//blockquote',
+            '//*[contains(@class,"gmail_quote")]',
+            '//*[contains(@class,"yahoo_quoted")]',
+            '//*[contains(@class,"moz-cite-prefix")]',
+            '//*[@id="divRplyFwdMsg"]',
+            '//*[contains(@class,"OutlookMessageHeader")]',
+            '//*[contains(@class,"x_gmail_quote")]',
+        ];
+        foreach ($selectors as $sel) {
+            foreach (iterator_to_array($xpath->query($sel)) as $node) {
+                $node->parentNode?->removeChild($node);
+            }
+        }
     }
 
     // =========================================================================
@@ -252,9 +281,27 @@ class EmailController extends Controller
                     $subject        = $msg['subject'] ?? '(no subject)';
                     $fromEmail      = $msg['from']['emailAddress']['address'] ?? null;
                     $fromName       = $msg['from']['emailAddress']['name'] ?? $fromEmail;
-                    $body           = $this->extractReplyBody($msg['body']['content'] ?? '');
+                    $rawBodyContent = $msg['body']['content'] ?? '';
                     $internetMsgId  = $msg['internetMessageId'] ?? null;
                     $conversationId = $msg['conversationId'] ?? null;
+
+                    Log::info('[INBOX] Processing message', [
+                        'graph_msg_id'     => $graphMsgId,
+                        'internet_msg_id'  => $internetMsgId,
+                        'conversation_id'  => $conversationId,
+                        'subject'          => $subject,
+                        'from'             => $fromEmail,
+                        'body_content_type'=> $msg['body']['contentType'] ?? 'unknown',
+                        'body_length'      => strlen($rawBodyContent),
+                        'body_preview'     => substr(strip_tags($rawBodyContent), 0, 200),
+                        'has_body_tag'     => stripos($rawBodyContent, '<body') !== false,
+                    ]);
+
+                    $body           = $this->extractReplyBody($rawBodyContent);
+                    // Fallback: if stripping quoted content left nothing, use the full stripped text
+                    if ($body === '') {
+                        $body = trim(strip_tags($rawBodyContent));
+                    }
 
                     // Cari tiket terkait:
                     // 0. Cek staging.email_thread_id → tiket yang sudah diapprove dari staging
@@ -334,21 +381,129 @@ class EmailController extends Controller
                             continue;
                         }
 
-                        // Semua email baru masuk ke staging_tickets dulu (perlu validasi EcoSystem)
-                        // EcoSystem yang approve → buat ticket + ticket_message pertama dari staging.body
-                        StagingTicket::create([
+                        // Step 1: create staging ticket (no body yet — need ID first for proxy URLs)
+                        $stagingTicket = StagingTicket::create([
                             'customer_id'        => $customer?->customer_id,
                             'description'        => $subject,
-                            'body'               => strip_tags($body),
                             'status'             => 'unvalidated',
                             'channel'            => 'email',
                             'email_thread_id'    => $conversationId ?? $internetMsgId,
+                            'email_message_id'   => $internetMsgId,  // Internet Message-ID header
+                            'graph_message_id'   => $graphMsgId,     // Graph internal ID (for attachment proxy)
                             'submitted_by_email' => $fromEmail,
                         ]);
 
+                        // Step 2: extract HTML body + fetch attachment metadata
+                        $rawHtmlBody    = $this->extractHtmlBody($rawBodyContent);
+                        $attachmentMeta = [];
+
+                        Log::info('[INBOX] extractHtmlBody result', [
+                            'staging_id'       => $stagingTicket->id,
+                            'raw_body_length'  => strlen($rawBodyContent),
+                            'has_body_tag'     => stripos($rawBodyContent, '<body') !== false,
+                            'html_body_length' => strlen($rawHtmlBody),
+                            'html_body_empty'  => trim(strip_tags($rawHtmlBody)) === '',
+                            'html_preview'     => substr(strip_tags($rawHtmlBody), 0, 300),
+                        ]);
+
+                        try {
+                            // contentId hanya ada di type microsoft.graph.fileAttachment —
+                            // butuh OData cast, kalau tidak Graph return 400 BadRequest.
+                            $attData = $this->graphGet("/users/{$sender}/messages/{$graphMsgId}/attachments", [
+                                '$select' => 'id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId',
+                            ]);
+                            foreach ($attData['value'] ?? [] as $att) {
+                                $attachmentMeta[] = [
+                                    'source'      => 'graph',
+                                    'id'          => $att['id'],
+                                    'name'        => $att['name'] ?? 'attachment',
+                                    'contentType' => $att['contentType'] ?? 'application/octet-stream',
+                                    'size'        => $att['size'] ?? 0,
+                                    'isInline'    => (bool) ($att['isInline'] ?? false),
+                                    'contentId'   => trim($att['contentId'] ?? '', '<>'),
+                                ];
+                            }
+                        } catch (\Exception $attEx) {
+                            Log::warning('processInbox: failed to fetch attachments', [
+                                'staging_id' => $stagingTicket->id,
+                                'error'      => $attEx->getMessage(),
+                            ]);
+                        }
+
+                        Log::info('[INBOX] Attachments fetched', [
+                            'staging_id'  => $stagingTicket->id,
+                            'count'       => count($attachmentMeta),
+                            'attachments' => array_map(fn($a) => [
+                                'name'      => $a['name'],
+                                'isInline'  => $a['isInline'],
+                                'contentId' => $a['contentId'],
+                                'size'      => $a['size'],
+                            ], $attachmentMeta),
+                        ]);
+
+                        // email_body_html: keep cid: references intact — EcoSystem resolves them via previewBody
+                        $emailBodyHtml = $rawHtmlBody;
+
+                        // Step 3: for JARVIES display, rewrite cid: to proxy URLs (index-based, URL-safe)
+                        $bodyHtml = preg_replace_callback(
+                            '/src=["\']cid:([^"\']+)["\']/i',
+                            function ($matches) use ($attachmentMeta, $stagingTicket) {
+                                $cid = $matches[1];
+                                foreach ($attachmentMeta as $idx => $att) {
+                                    $attCid   = $att['contentId'];
+                                    $attLocal = (string) strstr($attCid, '@', true) ?: $attCid;
+                                    $cidLocal = (string) strstr($cid,    '@', true) ?: $cid;
+                                    if ($attCid === $cid || $attLocal === $cidLocal) {
+                                        return 'src="' . route('tickets.staging.graph.inline', [
+                                            'id'    => $stagingTicket->id,
+                                            'index' => $idx,
+                                        ]) . '"';
+                                    }
+                                }
+                                return $matches[0];
+                            },
+                            $rawHtmlBody
+                        );
+
+                        // Fallback: if body is empty after stripping quoted content, use full plain text
+                        $bodyAfterCid = trim(strip_tags((string) $bodyHtml));
+                        Log::info('[INBOX] After CID rewrite', [
+                            'staging_id'        => $stagingTicket->id,
+                            'body_after_cid_empty' => $bodyAfterCid === '',
+                            'body_preview'      => substr($bodyAfterCid, 0, 300),
+                        ]);
+
+                        if ($bodyAfterCid === '') {
+                            $plainText     = trim(strip_tags($rawBodyContent));
+                            $bodyHtml      = nl2br(htmlspecialchars($plainText, ENT_QUOTES, 'UTF-8'));
+                            $emailBodyHtml = $bodyHtml;
+                            Log::info('[INBOX] Used plain-text fallback', [
+                                'staging_id'   => $stagingTicket->id,
+                                'plain_length' => strlen($plainText),
+                                'plain_preview'=> substr($plainText, 0, 200),
+                            ]);
+                        }
+
+                        $stagingTicket->update([
+                            'body'             => $bodyHtml,       // JARVIES: cid: replaced with proxy URLs
+                            'email_body_html'  => $emailBodyHtml,  // EcoSystem: cid: intact for previewBody
+                            'attachment_names' => json_encode($attachmentMeta),
+                            'has_attachments'  => count($attachmentMeta) > 0,
+                        ]);
+
+                        Log::info('[INBOX] Staging ticket updated', [
+                            'staging_id'        => $stagingTicket->id,
+                            'body_length'       => strlen((string) $bodyHtml),
+                            'body_preview'      => substr(strip_tags((string) $bodyHtml), 0, 200),
+                            'email_body_length' => strlen((string) $emailBodyHtml),
+                            'attachment_names'  => $attachmentMeta,
+                        ]);
+
                         Log::info('EmailController@processInbox: staging ticket created from email', [
-                            'from'    => $fromEmail,
-                            'subject' => $subject,
+                            'staging_id'  => $stagingTicket->id,
+                            'from'        => $fromEmail,
+                            'subject'     => $subject,
+                            'attachments' => count($attachmentMeta),
                         ]);
                     }
 

@@ -81,26 +81,52 @@ class GraphRelayService
         string $body,
         array $ccEmails = []
     ): ?string {
-        // Cari pesan terakhir dalam conversationId di semua folder
+        // Cari pesan terakhir dalam conversationId.
+        //
+        // PENTING: Graph API tidak mendukung `$filter=conversationId eq 'xxx'`
+        // dikombinasikan dengan `$orderby=receivedDateTime desc` — return 400
+        // "InefficientFilter". Kalau error, silent fail → createReplyDraft return
+        // null → fallback ke createNewDraft → email baru dengan conv baru →
+        // Gmail pecah thread jadi kotak terpisah.
+        //
+        // Solusi: fetch semua pesan dalam conversation tanpa orderby, lalu pilih
+        // yang terbaru di PHP. Prioritas pesan Inbox (customer-sourced) karena
+        // createReply pada pesan inbound menghasilkan thread yang lebih konsisten.
         $searchRes = Http::withToken($token)->get(
             "{$this->graphBase}/users/{$this->sender}/messages",
             [
-                '$filter'  => "conversationId eq '{$conversationId}'",
-                '$orderby' => 'receivedDateTime desc',
-                '$select'  => 'id',
-                '$top'     => 1,
+                '$filter' => "conversationId eq '{$conversationId}'",
+                '$select' => 'id,receivedDateTime,sentDateTime,parentFolderId',
+                '$top'    => 50,
             ]
         );
 
-        $msgs = $searchRes->json('value') ?? [];
-        if (empty($msgs)) {
+        if (!$searchRes->successful()) {
+            Log::warning('GraphRelayService: conversation search failed', [
+                'conversationId' => $conversationId,
+                'status'         => $searchRes->status(),
+                'body'           => $searchRes->body(),
+            ]);
+            return null;
+        }
+
+        $allMsgs = $searchRes->json('value') ?? [];
+        if (empty($allMsgs)) {
             Log::warning('GraphRelayService: no message found for conversationId', [
                 'conversationId' => $conversationId,
             ]);
             return null;
         }
 
-        $lastMsgId = $msgs[0]['id'];
+        // Pilih latest: utamakan receivedDateTime (inbound email), fallback ke sentDateTime.
+        // Sort desc by max(receivedDateTime, sentDateTime).
+        usort($allMsgs, function ($a, $b) {
+            $aTime = $a['receivedDateTime'] ?? $a['sentDateTime'] ?? '';
+            $bTime = $b['receivedDateTime'] ?? $b['sentDateTime'] ?? '';
+            return strcmp($bTime, $aTime); // desc
+        });
+
+        $lastMsgId = $allMsgs[0]['id'];
 
         // createReply membuat draft reply yang terhubung ke thread
         $replyRes = Http::withToken($token)->post(
@@ -120,20 +146,23 @@ class GraphRelayService
 
         // WAJIB: PATCH toRecipients ke customer
         // Bug Graph: createReply menyetel toRecipients = raditya (pengirim asli), bukan customer
+        //
+        // SUBJECT TIDAK DI-PATCH pada reply draft.
+        // Alasan: createReply auto-set subject "Re: {original}" yang preserve conversationId
+        // di Exchange. Jika kita PATCH subject ke format berbeda ("Ticket #XXXX: desc"),
+        // Exchange deteksi subject change drastis → generate conversationId baru → Gmail
+        // memecah thread jadi email terpisah. Biarkan "Re: ..." default agar thread tetap
+        // satu. ccRecipients selalu di-set eksplisit (bisa [] untuk hapus pre-populated).
         $patchPayload = [
-            'subject'      => $subject,
             'body'         => ['contentType' => 'HTML', 'content' => $body],
             'toRecipients' => [
                 ['emailAddress' => ['address' => $toEmail]],
             ],
-        ];
-
-        if (!empty($ccEmails)) {
-            $patchPayload['ccRecipients'] = array_map(
+            'ccRecipients' => array_map(
                 fn($cc) => ['emailAddress' => ['address' => $cc]],
                 $ccEmails
-            );
-        }
+            ),
+        ];
 
         Http::withToken($token)->patch(
             "{$this->graphBase}/users/{$this->sender}/messages/{$draftId}",

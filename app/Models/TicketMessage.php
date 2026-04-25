@@ -30,10 +30,11 @@ class TicketMessage extends Model
     ];
 
     protected $casts = [
-        'is_internal_note' => 'boolean',
+        'is_internal_note'    => 'boolean',
         'is_read_by_customer' => 'boolean',
-        'is_read_by_agent' => 'boolean',
-        'read_at' => 'datetime',
+        'is_read_by_agent'    => 'boolean',
+        'read_at'             => 'datetime',
+        'cc_emails'           => 'array',
     ];
 
     public function ticket()

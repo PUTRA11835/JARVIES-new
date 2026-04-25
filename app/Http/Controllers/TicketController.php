@@ -128,7 +128,35 @@ class TicketController extends Controller
             ->where('customer_id', $user['id'])
             ->firstOrFail();
 
-        return view('tickets.staging-show', compact('staging'));
+        // Populate body + attachment metadata dari Graph API (fetch once, cached to DB).
+        // EcoSystem membuat staging email-channel hanya dengan has_attachments=true dan
+        // graph_message_id — body & daftar attachment diambil on-demand via Graph.
+        $this->fetchAndCacheStagingBody($staging);
+
+        // Body HTML: prefer $staging->body (sudah di-rewrite cid: → proxy URL),
+        // fallback ke email_body_html untuk kompat record lama.
+        $bodyHtml = trim(strip_tags($staging->body ?? '')) !== ''
+            ? $staging->body
+            : $staging->email_body_html;
+
+        // Bangun daftar non-inline attachment dari attachment_names yang sudah di-cache.
+        // Index asli dalam array dipertahankan karena serveStagingGraphDownload
+        // lookup berdasar index di array penuh (termasuk inline).
+        $attachments = [];
+        $meta        = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+        foreach ($meta as $idx => $att) {
+            if (!is_array($att)) continue;                 // skip legacy string entries
+            if (!empty($att['isInline'])) continue;        // inline images ditangani lewat cid: rewrite
+            $attachments[] = [
+                'name' => $att['name'] ?? 'attachment',
+                'size' => $att['size'] ?? 0,
+                'url'  => route('tickets.staging.graph.download', [
+                    'id' => $staging->id, 'index' => $idx,
+                ]),
+            ];
+        }
+
+        return view('tickets.staging-show', compact('staging', 'bodyHtml', 'attachments'));
     }
 
     /**
@@ -1516,7 +1544,11 @@ class TicketController extends Controller
                         'sender_email' => $msg->sender_email,
                         'message'      => $msg->message,
                         'message_html' => $html,
-                        'cc_emails'    => $msg->cc_emails,
+                        'cc_emails'    => collect(is_array($msg->cc_emails) ? $msg->cc_emails : (json_decode($msg->cc_emails ?? '[]', true) ?? []))
+                                            ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
+                                            ->filter()
+                                            ->values()
+                                            ->all(),
                         'channel'      => $msg->channel,
                         'attachments'  => $deduped,
                         'created_at'   => $msg->created_at?->toIso8601String(),
@@ -1777,6 +1809,17 @@ class TicketController extends Controller
                     return response()->json(['success' => false, 'message' => 'Failed to send message. Please try again.'], 500);
                 }
 
+                // Simpan cc_emails di message agar:
+                // 1. Bubble chat EcoSystem/Jarvies tampilkan CC untuk message ini
+                // 2. Polling EcoSystem bisa merge CC ke helpdesk reply form
+                // Format {address,name} untuk konsistensi dengan format dari Graph inbox.
+                $ccForMessage = [];
+                foreach ($ticketCcEmails as $addr) {
+                    if (is_string($addr) && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                        $ccForMessage[] = ['address' => strtolower(trim($addr)), 'name' => null];
+                    }
+                }
+
                 $ticketMessage = TicketMessage::create([
                     'ticket_id'           => $ticket->ticket_id,
                     'sender_type'         => 'customer',
@@ -1787,12 +1830,17 @@ class TicketController extends Controller
                     'message_html'        => $htmlBodyForDb ?: null,
                     'channel'             => 'email',
                     'email_message_id'    => $result['internet_message_id'],
+                    'cc_emails'           => !empty($ccForMessage) ? $ccForMessage : null,
                     'is_internal_note'    => false,
                     'is_read_by_customer' => true,
                     'is_read_by_agent'    => false,
                 ]);
 
-                if (!empty($result['conversation_id']) && empty($ticket->email_thread_id)) {
+                // Selalu sync email_thread_id ke convId email yang baru dikirim, bukan
+                // hanya saat kosong. Exchange bisa ubah convId jika subject di-patch, dan
+                // reply berikutnya harus ref ke convId terbaru agar Gmail menjaga thread.
+                if (!empty($result['conversation_id'])
+                    && $result['conversation_id'] !== $ticket->email_thread_id) {
                     $ticket->update(['email_thread_id' => $result['conversation_id']]);
                 }
 
@@ -3330,5 +3378,301 @@ class TicketController extends Controller
         };
 
         return response()->file($filePath, ['Content-Type' => $mime]);
+    }
+
+    // ── Graph API proxy for email-sourced staging attachments ──────────────────
+
+    private function graphApiGet(string $path, array $query = [], array $headers = []): array
+    {
+        $token   = $this->graphGetToken();
+        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $http    = Http::withToken($token);
+        if (!empty($headers)) {
+            $http = $http->withHeaders($headers);
+        }
+        $response = $http->get("{$baseUrl}{$path}", $query);
+        if (!$response->successful()) {
+            throw new \RuntimeException("Graph GET {$path} failed: " . $response->body());
+        }
+        return $response->json();
+    }
+
+    /**
+     * If a staging ticket has no body (created by EcoSystem which doesn't populate body),
+     * fetch the email content on-demand from Graph API and cache it back to the DB.
+     */
+    private function fetchAndCacheStagingBody(StagingTicket $staging): void
+    {
+        if (!$staging->email_message_id && !$staging->graph_message_id) return;
+
+        // Skip hanya jika body SUDAH terisi DAN attachment metadata juga sudah dicache
+        // (atau memang tidak ada attachment). Kalau salah satu masih kosong, fetch ulang.
+        $hasBody       = trim(strip_tags($staging->body ?? '')) !== '';
+        $cachedAtts    = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+        $hasGraphAtts  = collect($cachedAtts)->contains(fn ($a) => is_array($a) && ($a['source'] ?? null) === 'graph');
+        $attNeedsFetch = $staging->has_attachments && !$hasGraphAtts;
+
+        if ($hasBody && !$attNeedsFetch) return;
+
+        try {
+            $sender     = env('MS_SENDER_EMAIL');
+            $graphMsg   = null;
+            // Minta body dalam HTML supaya inline image tetap jadi <img src="cid:..."> tag,
+            // bukan placeholder text `[image.png]` yang tidak bisa di-rewrite via regex.
+            $preferHtml = ['Prefer' => 'outlook.body-content-type="html"'];
+
+            // 1. Direct lookup by Graph internal ID (fast path)
+            if ($staging->graph_message_id) {
+                try {
+                    $graphMsg = $this->graphApiGet(
+                        "/users/{$sender}/messages/{$staging->graph_message_id}",
+                        ['$select' => 'id,body,internetMessageId,hasAttachments'],
+                        $preferHtml
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('fetchAndCacheStagingBody: direct Graph lookup failed', [
+                        'staging_id' => $staging->id, 'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // 2. Fallback: search by Internet Message-ID (stored by EcoSystem)
+            if (!$graphMsg && $staging->email_message_id) {
+                $escaped = str_replace("'", "''", $staging->email_message_id);
+                $result  = $this->graphApiGet(
+                    "/users/{$sender}/messages",
+                    [
+                        '$filter' => "internetMessageId eq '{$escaped}'",
+                        '$select' => 'id,body,internetMessageId,hasAttachments',
+                        '$top'    => 1,
+                    ],
+                    $preferHtml
+                );
+                $graphMsg = $result['value'][0] ?? null;
+            }
+
+            if (!$graphMsg) return;
+
+            $graphMsgId     = $graphMsg['id'];
+            $rawBodyContent = $graphMsg['body']['content'] ?? '';
+            if (empty($rawBodyContent)) return;
+
+            // Extract HTML body (strip quoted-reply sections)
+            $dom     = new \DOMDocument('1.0', 'UTF-8');
+            $encoded = mb_convert_encoding($rawBodyContent, 'HTML-ENTITIES', 'UTF-8');
+            if (stripos($rawBodyContent, '<body') !== false) {
+                @$dom->loadHTML($encoded, LIBXML_NOERROR | LIBXML_NOWARNING);
+            } else {
+                @$dom->loadHTML(
+                    '<html><head><meta charset="utf-8"/></head><body>' . $encoded . '</body></html>',
+                    LIBXML_NOERROR | LIBXML_NOWARNING
+                );
+            }
+            $xpath = new \DOMXPath($dom);
+            foreach (['//blockquote', '//*[contains(@class,"gmail_quote")]', '//*[contains(@class,"yahoo_quoted")]',
+                      '//*[contains(@class,"moz-cite-prefix")]', '//*[@id="divRplyFwdMsg"]',
+                      '//*[contains(@class,"OutlookMessageHeader")]', '//*[contains(@class,"x_gmail_quote")]'] as $sel) {
+                foreach (iterator_to_array($xpath->query($sel)) as $node) {
+                    $node->parentNode?->removeChild($node);
+                }
+            }
+            $bodyNode    = $dom->getElementsByTagName('body')->item(0);
+            $rawHtmlBody = '';
+            if ($bodyNode) {
+                foreach ($bodyNode->childNodes as $child) {
+                    $rawHtmlBody .= $dom->saveHTML($child);
+                }
+                $rawHtmlBody = trim($rawHtmlBody);
+            }
+            if (trim(strip_tags($rawHtmlBody)) === '') {
+                $rawHtmlBody = nl2br(htmlspecialchars(trim(strip_tags($rawBodyContent)), ENT_QUOTES, 'UTF-8'));
+            }
+
+            // Fetch attachment metadata from Graph.
+            // PENTING: contentId hanya ada di type microsoft.graph.fileAttachment,
+            // bukan base microsoft.graph.attachment. Kalau pakai $select tanpa OData cast,
+            // Graph return 400 BadRequest → fetch gagal → cid: tidak pernah di-rewrite.
+            $attachmentMeta = [];
+            try {
+                $attData = $this->graphApiGet("/users/{$sender}/messages/{$graphMsgId}/attachments", [
+                    '$select' => 'id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId',
+                ]);
+                foreach ($attData['value'] ?? [] as $att) {
+                    $attachmentMeta[] = [
+                        'source'      => 'graph',
+                        'id'          => $att['id'],
+                        'name'        => $att['name'] ?? 'attachment',
+                        'contentType' => $att['contentType'] ?? 'application/octet-stream',
+                        'size'        => $att['size'] ?? 0,
+                        'isInline'    => (bool)($att['isInline'] ?? false),
+                        'contentId'   => trim($att['contentId'] ?? '', '<>'),
+                    ];
+                }
+            } catch (\Exception $e) {
+                Log::warning('fetchAndCacheStagingBody: attachment fetch failed', ['staging_id' => $staging->id]);
+            }
+
+            // Rewrite cid: references to JARVIES proxy URLs
+            $bodyHtml = preg_replace_callback(
+                '/src=["\']cid:([^"\']+)["\']/i',
+                function ($matches) use ($attachmentMeta, $staging) {
+                    $cid = $matches[1];
+                    foreach ($attachmentMeta as $idx => $att) {
+                        $attCid   = $att['contentId'];
+                        $attLocal = (string)(strstr($attCid, '@', true) ?: $attCid);
+                        $cidLocal = (string)(strstr($cid,    '@', true) ?: $cid);
+                        if ($attCid === $cid || $attLocal === $cidLocal) {
+                            return 'src="' . route('tickets.staging.graph.inline', [
+                                'id' => $staging->id, 'index' => $idx,
+                            ]) . '"';
+                        }
+                    }
+                    return $matches[0];
+                },
+                $rawHtmlBody
+            );
+
+            // Rewrite placeholder `[filename.png]` yang muncul jika body email
+            // datang sebagai text/mixed format — cocokkan dengan attachment by name.
+            foreach ($attachmentMeta as $idx => $att) {
+                $attName = $att['name'] ?? '';
+                if (!$attName) continue;
+                if (!preg_match('/\.(png|jpe?g|gif|bmp|webp|svg)$/i', $attName)) continue;
+                $placeholder = '[' . $attName . ']';
+                if (str_contains($bodyHtml, $placeholder)) {
+                    $proxyUrl = route('tickets.staging.graph.inline', [
+                        'id' => $staging->id, 'index' => $idx,
+                    ]);
+                    $imgTag = '<img src="' . $proxyUrl . '" alt="' . htmlspecialchars($attName, ENT_QUOTES)
+                            . '" style="max-width:100%">';
+                    $bodyHtml = str_replace($placeholder, $imgTag, $bodyHtml);
+                }
+            }
+
+            // Persist to DB (cache for future loads)
+            $updateData = [
+                'body'            => $bodyHtml,
+                'email_body_html' => $rawHtmlBody,
+                'graph_message_id'=> $graphMsgId,
+            ];
+
+            // Simpan attachment metadata Graph. Overwrite existing karena:
+            //   - Email-channel staging tidak memiliki web-form uploads (string entries)
+            //   - Index dalam array harus match dengan idx yang dipakai saat rewrite
+            //     cid:/placeholder → proxy URL, sehingga overwrite menjamin konsistensi.
+            $existing = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+            $hasGraph = collect($existing)->contains(fn ($a) => is_array($a) && ($a['source'] ?? null) === 'graph');
+            if (!empty($attachmentMeta) && !$hasGraph) {
+                $updateData['attachment_names'] = json_encode($attachmentMeta);
+                $updateData['has_attachments']  = true;
+            }
+            $staging->update($updateData);
+            $staging->refresh();
+
+            Log::info('fetchAndCacheStagingBody: body fetched and cached', [
+                'staging_id'  => $staging->id,
+                'body_length' => strlen((string)$bodyHtml),
+                'attachments' => count($attachmentMeta),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning('fetchAndCacheStagingBody failed', [
+                'staging_id' => $staging->id, 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function graphGetToken(): string
+    {
+        $tenantId = env('MS_TENANT_ID');
+        $response = Http::asForm()->post(
+            "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+            [
+                'grant_type'    => 'client_credentials',
+                'client_id'     => env('MS_CLIENT_ID'),
+                'client_secret' => env('MS_CLIENT_SECRET'),
+                'scope'         => 'https://graph.microsoft.com/.default',
+            ]
+        );
+        if (!$response->successful()) {
+            throw new \RuntimeException('Failed to obtain Graph token');
+        }
+        return $response->json('access_token');
+    }
+
+    private function graphFetchAttachment(string $graphMsgId, string $attachmentId): array
+    {
+        $sender  = env('MS_SENDER_EMAIL');
+        $baseUrl = rtrim(env('GRAPH_BASE_URL', 'https://graph.microsoft.com/v1.0'), '/');
+        $token   = $this->graphGetToken();
+
+        $response = Http::withToken($token)->get(
+            "{$baseUrl}/users/{$sender}/messages/{$graphMsgId}/attachments/{$attachmentId}"
+        );
+
+        if (!$response->successful()) {
+            abort(404, 'Attachment not found in email');
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * Proxy: serve inline image from email attachment stored in Graph.
+     * URL: GET /tickets/staging/{id}/inline/{index}
+     */
+    public function serveStagingGraphInline($stagingId, $index)
+    {
+        $user = session('user');
+        if (!$user) abort(403);
+
+        $staging = StagingTicket::where('id', $stagingId)
+            ->where('customer_id', $user['id'])
+            ->firstOrFail();
+
+        $graphMsgId = $staging->graph_message_id ?? $staging->email_message_id;
+        if (!$graphMsgId) abort(404, 'No email source for this ticket');
+
+        $attachments = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+        $att = $attachments[(int) $index] ?? null;
+        if (!$att || empty($att['id'])) abort(404, 'Attachment not found');
+
+        $data        = $this->graphFetchAttachment($graphMsgId, $att['id']);
+        $content     = base64_decode($data['contentBytes'] ?? '');
+        $contentType = $data['contentType'] ?? $att['contentType'] ?? 'application/octet-stream';
+
+        return response($content, 200)
+            ->header('Content-Type', $contentType)
+            ->header('Cache-Control', 'private, max-age=3600');
+    }
+
+    /**
+     * Download: stream email attachment from Graph as file download.
+     * URL: GET /tickets/staging/{id}/graph-attachment/{index}
+     */
+    public function serveStagingGraphDownload($stagingId, $index)
+    {
+        $user = session('user');
+        if (!$user) abort(403);
+
+        $staging = StagingTicket::where('id', $stagingId)
+            ->where('customer_id', $user['id'])
+            ->firstOrFail();
+
+        $graphMsgId = $staging->graph_message_id ?? $staging->email_message_id;
+        if (!$graphMsgId) abort(404, 'No email source for this ticket');
+
+        $attachments = json_decode($staging->attachment_names ?? '[]', true) ?? [];
+        $att = $attachments[(int) $index] ?? null;
+        if (!$att || empty($att['id'])) abort(404, 'Attachment not found');
+
+        $data        = $this->graphFetchAttachment($graphMsgId, $att['id']);
+        $content     = base64_decode($data['contentBytes'] ?? '');
+        $contentType = $data['contentType'] ?? $att['contentType'] ?? 'application/octet-stream';
+        $filename    = $data['name'] ?? $att['name'] ?? 'attachment';
+
+        return response($content, 200)
+            ->header('Content-Type', $contentType)
+            ->header('Content-Disposition', 'attachment; filename="' . addslashes($filename) . '"');
     }
 }

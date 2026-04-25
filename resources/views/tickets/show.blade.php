@@ -598,6 +598,10 @@ async function loadMessages() {
                 newMessages.forEach(m => thread.insertAdjacentHTML('beforeend', createMessageBubble(m)));
                 lastMessageId = newMessages[newMessages.length - 1].id;
                 thread.scrollTop = thread.scrollHeight;
+
+                // Auto-populate CC input saat ada reply helpdesk/employee yang bawa CC —
+                // customer tidak perlu mengetik ulang. Customer tetap bisa hapus tag.
+                mergeAgentCcFromMessages(newMessages);
             }
         }
 
@@ -951,6 +955,45 @@ function filterSidebarTickets() {
 }
 
 // ==================== HELPERS ====================
+
+// Ekstrak alamat email dari raw CC value (string, object, atau JSON string)
+function normalizeCcAddr(c) {
+    if (!c) return '';
+    if (typeof c === 'string') return c.trim().toLowerCase();
+    if (typeof c === 'object') return String(c.address || c.email || '').trim().toLowerCase();
+    return '';
+}
+
+// Merge CC dari message baru (selain dari customer sendiri) ke state ccEmails.
+// Dipanggil saat polling deteksi message baru dari helpdesk/employee/system.
+// Exclude Jarvies customer email + helpdesk sender agar tidak CC ke diri sendiri.
+function mergeAgentCcFromMessages(newMessages) {
+    if (!Array.isArray(newMessages) || newMessages.length === 0) return;
+    const selfEmail = @json(strtolower(session('user.email') ?? ''));
+    const helpdeskSelf = @json(strtolower(env('MS_SENDER_EMAIL') ?? ''));
+    const excludeSet = new Set([selfEmail, helpdeskSelf].filter(Boolean));
+    const existingSet = new Set(ccEmails.map(e => String(e).toLowerCase()));
+    let changed = false;
+    for (const msg of newMessages) {
+        // Hanya ambil CC dari message NON-customer — customer = user Jarvies sendiri
+        if (msg.sender_type === 'customer') continue;
+        let raw = msg.cc_emails;
+        if (typeof raw === 'string' && raw) {
+            try { raw = JSON.parse(raw); } catch (_) { raw = []; }
+        }
+        if (!Array.isArray(raw)) continue;
+        for (const c of raw) {
+            const addr = normalizeCcAddr(c);
+            if (!addr) continue;
+            if (excludeSet.has(addr)) continue;
+            if (existingSet.has(addr)) continue;
+            ccEmails.push(addr);
+            existingSet.add(addr);
+            changed = true;
+        }
+    }
+    if (changed) renderCcTags();
+}
 
 // Normalize cc_emails: bisa berupa string "a@b.com, c@d.com"
 // atau JSON array [{"name":null,"address":"a@b.com"}]
