@@ -30,6 +30,9 @@ class Ticket extends Model
         'channel',
         'email_thread_id',
         'customer_thread_id',
+        'cc_emails',
+        'last_message_at',
+        'last_agent_reply_at',
     ];
 
     protected $casts = [

@@ -1772,26 +1772,42 @@ class TicketController extends Controller
                 $relayHtml = $htmlBody
                     ?: ('<p>' . nl2br(htmlspecialchars($request->input('comment', ''))) . '</p>');
 
-                // Gunakan CC dari request jika dikirim (customer update CC di compose area),
-                // jika tidak ada gunakan yang tersimpan di ticket.cc_emails.
-                // Update ticket.cc_emails agar persistent untuk reply berikutnya.
-                if (!empty($ccEmails)) {
-                    $ticketCcEmails = array_values(array_filter($ccEmails, fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL)));
-                    $ticket->update(['cc_emails' => $ticketCcEmails]);
+                // CC dari request adalah snapshot UI customer (existing + tambahan, minus
+                // tag yang dihapus). Override ticket.cc_emails dengan list ini agar reply
+                // berikutnya auto-populate dari state terbaru. Simpan dalam format
+                // [{address,name}] agar konsisten dengan EcoSystem (processInbox & helpdesk reply).
+                $senderSelf  = strtolower((string) (env('MS_SENDER_EMAIL') ?? config('services.microsoft_graph.sender_email', '')));
+                $customerSelf = strtolower((string) ($senderEmail ?? ''));
+
+                if ($request->filled('cc_emails') || is_array($rawCc)) {
+                    $normalized = [];
+                    foreach ($ccEmails as $c) {
+                        $addr = is_array($c) ? ($c['address'] ?? $c['email'] ?? '') : (string) $c;
+                        $addr = strtolower(trim($addr));
+                        if (!$addr || !filter_var($addr, FILTER_VALIDATE_EMAIL)) continue;
+                        if ($addr === $senderSelf || $addr === $customerSelf) continue;
+                        $normalized[$addr] = ['address' => $addr, 'name' => is_array($c) ? ($c['name'] ?? null) : null];
+                    }
+                    $ticketCcStore = array_values($normalized);
+                    $ticket->update(['cc_emails' => $ticketCcStore]);
                 } else {
-                    $ticketCcEmails = [];
+                    $ticketCcStore = [];
                     if (!empty($ticket->cc_emails)) {
                         $decoded = is_array($ticket->cc_emails)
                             ? $ticket->cc_emails
                             : json_decode($ticket->cc_emails, true);
                         foreach ((array) $decoded as $cc) {
                             $addr = is_array($cc) ? ($cc['address'] ?? $cc['email'] ?? null) : $cc;
-                            if ($addr && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
-                                $ticketCcEmails[] = $addr;
-                            }
+                            $addr = strtolower(trim((string) $addr));
+                            if (!$addr || !filter_var($addr, FILTER_VALIDATE_EMAIL)) continue;
+                            $ticketCcStore[] = ['address' => $addr, 'name' => is_array($cc) ? ($cc['name'] ?? null) : null];
                         }
                     }
                 }
+
+                // Plain-string list dipakai Graph relay dan ticket_message.cc_emails (untuk
+                // bubble chat). Sumber tunggal: $ticketCcStore di atas.
+                $ticketCcEmails = array_map(fn($c) => $c['address'], $ticketCcStore);
 
                 $graphService = new GraphRelayService();
                 $result = $graphService->sendRelayEmail(
@@ -1809,17 +1825,6 @@ class TicketController extends Controller
                     return response()->json(['success' => false, 'message' => 'Failed to send message. Please try again.'], 500);
                 }
 
-                // Simpan cc_emails di message agar:
-                // 1. Bubble chat EcoSystem/Jarvies tampilkan CC untuk message ini
-                // 2. Polling EcoSystem bisa merge CC ke helpdesk reply form
-                // Format {address,name} untuk konsistensi dengan format dari Graph inbox.
-                $ccForMessage = [];
-                foreach ($ticketCcEmails as $addr) {
-                    if (is_string($addr) && filter_var($addr, FILTER_VALIDATE_EMAIL)) {
-                        $ccForMessage[] = ['address' => strtolower(trim($addr)), 'name' => null];
-                    }
-                }
-
                 $ticketMessage = TicketMessage::create([
                     'ticket_id'           => $ticket->ticket_id,
                     'sender_type'         => 'customer',
@@ -1830,7 +1835,7 @@ class TicketController extends Controller
                     'message_html'        => $htmlBodyForDb ?: null,
                     'channel'             => 'email',
                     'email_message_id'    => $result['internet_message_id'],
-                    'cc_emails'           => !empty($ccForMessage) ? $ccForMessage : null,
+                    'cc_emails'           => !empty($ticketCcStore) ? $ticketCcStore : null,
                     'is_internal_note'    => false,
                     'is_read_by_customer' => true,
                     'is_read_by_agent'    => false,
