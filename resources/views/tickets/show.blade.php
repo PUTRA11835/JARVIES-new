@@ -134,6 +134,20 @@
 .message-content a             { color: #2563eb; text-decoration: underline; }
 .message-content img           { max-width: 100%; height: auto; border-radius: 4px; }
 .message-content h1, .message-content h2, .message-content h3 { font-weight: 600; margin-bottom: 0.25rem; }
+
+/* Sidebar ticket badges */
+.sb-badge { display:inline-flex; align-items:center; font-size:10px; font-weight:600; padding:1px 6px; border-radius:4px; line-height:1.4; }
+.sb-prio-very-high { background:#ede9fe; color:#6d28d9; }
+.sb-prio-high      { background:#fee2e2; color:#b91c1c; }
+.sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
+.sb-prio-low       { background:#dcfce7; color:#15803d; }
+.sb-status-open         { background:#dbeafe; color:#1d4ed8; }
+.sb-status-in_progress  { background:#ede9fe; color:#6d28d9; }
+.sb-status-closed       { background:#dcfce7; color:#15803d; }
+.sb-status-wait_to_close{ background:#ffedd5; color:#c2410c; }
+.sb-status-hold         { background:#f3f4f6; color:#4b5563; }
+.sb-status-reply        { background:#fef9c3; color:#a16207; }
+.sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
 </style>
 @endpush
 
@@ -173,24 +187,35 @@
     <div class="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden min-w-0">
 
         {{-- Ticket Header --}}
-        <div class="px-6 py-4 border-b border-gray-200 shrink-0">
-            <div class="flex items-center gap-2 mb-1 flex-wrap">
-                <h2 class="text-base font-bold text-gray-900">{{ $ticket->description ?: 'No description' }}</h2>
-                <span class="text-sm text-gray-400 font-mono">{{ $ticket->ticket_number ?? 'Pending' }}</span>
-                <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
-                    {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
-                </span>
-                @if($ticket->ticket_type)
-                <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
-                    {{ $ticket->ticket_type }}
-                </span>
-                @endif
+        <div class="px-6 py-4 border-b border-gray-200 shrink-0 flex items-start gap-2">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                    <h2 class="text-base font-bold text-gray-900">{{ $ticket->description ?: 'No description' }}</h2>
+                    <span class="text-sm text-gray-400 font-mono">{{ $ticket->ticket_number ?? 'Pending' }}</span>
+                    <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $statusColors[$ticket->status] ?? 'bg-gray-100 text-gray-600' }}">
+                        {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
+                    </span>
+                    @if($ticket->ticket_type)
+                    <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold {{ $typeColors[$ticket->ticket_type] ?? 'bg-gray-100 text-gray-600' }}">
+                        {{ $ticket->ticket_type }}
+                    </span>
+                    @endif
+                </div>
+                <div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                    <span class="font-medium text-gray-700">{{ $customerName }}</span>
+                    <span class="text-gray-300">|</span>
+                    <span>{{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB</span>
+                </div>
             </div>
-            <div class="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
-                <span class="font-medium text-gray-700">{{ $customerName }}</span>
-                <span class="text-gray-300">|</span>
-                <span>{{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB</span>
-            </div>
+            <button id="toggleRightPanelBtn" onclick="toggleTicketRightPanel()" title="Toggle properties panel"
+                class="flex-shrink-0 w-9 h-9 items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all hidden xl:flex">
+                <svg id="rightPanelIconCollapse" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <svg id="rightPanelIconExpand" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
         </div>
 
         {{-- Messages Thread --}}
@@ -207,89 +232,105 @@
         {{-- Compose Area --}}
         <div class="border-t border-gray-200 shrink-0">
 
-            {{-- Channel mode indicator (diupdate JS setelah reply) --}}
-            <div id="channelIndicator">
-            @if($ticket->email_thread_id || $ticket->channel === 'email')
-            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-blue-700">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
-                </svg>
-                @if($ticket->channel === 'email')
-                    <span>Replies will be sent to the support team via <strong>Email</strong></span>
+            {{-- Toggle strip: channel indicator + collapse button --}}
+            <div class="flex items-center pr-3">
+                <div id="channelIndicator" class="flex-1">
+                @if($ticket->email_thread_id || $ticket->channel === 'email')
+                <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-blue-700">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                    </svg>
+                    @if($ticket->channel === 'email')
+                        <span>Replies will be sent to the support team via <strong>Email</strong></span>
+                    @else
+                        <span>Email thread active — helpdesk replies will be sent to <strong>your email</strong></span>
+                    @endif
+                </div>
                 @else
-                    <span>Email thread active — helpdesk replies will be sent to <strong>your email</strong></span>
+                <div class="px-4 pt-2 pb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
+                </div>
                 @endif
-            </div>
-            @else
-            <div class="px-4 pt-2 flex items-center gap-1.5 text-xs text-gray-400">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
-                </svg>
-                <span>Replies only visible in <strong>Jarvies</strong> — no email will be sent</span>
-            </div>
-            @endif
-            </div>
-
-            {{-- To row (email channel only, read-only) --}}
-            @if(($ticket->email_thread_id || $ticket->channel === 'email') && session('user.email'))
-            <div class="px-4 pt-1.5">
-                <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 border-b border-gray-100">
-                    <span class="font-semibold text-gray-500 w-5 shrink-0">To</span>
-                    <span class="text-gray-700">{{ session('user.email') }}</span>
                 </div>
+                <button onclick="toggleReplyBox()" title="Toggle reply box"
+                    class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all">
+                    <svg id="replyToggleIconDown" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <svg id="replyToggleIconUp" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                    </svg>
+                </button>
             </div>
-            @endif
 
-            {{-- CC row (email channel only) --}}
-            @if($ticket->email_thread_id || $ticket->channel === 'email')
-            <div class="px-4 pt-1" id="ccRow">
-                <div class="flex flex-wrap items-center gap-1 min-h-[30px] px-2 py-1 cursor-text"
-                     onclick="document.getElementById('ccInput').focus()">
-                    <span class="text-[11px] font-semibold text-gray-500 w-5 shrink-0">CC</span>
-                    <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
-                    <input type="text" id="ccInput"
-                           placeholder="Add email, press Enter…"
-                           class="text-xs border-none bg-transparent outline-none flex-1 min-w-40 placeholder-gray-300 py-0.5"
-                           onkeydown="handleCcKeydown(event)"
-                           onblur="commitCcInput()"
-                           onpaste="handleCcPaste(event)">
+            {{-- Collapsible compose content --}}
+            <div id="replyComposeInner" style="max-height:600px;overflow:hidden;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
+
+                {{-- To row (email channel only, read-only) --}}
+                @if(($ticket->email_thread_id || $ticket->channel === 'email') && session('user.email'))
+                <div class="px-4 pt-1.5">
+                    <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 border-b border-gray-100">
+                        <span class="font-semibold text-gray-500 w-5 shrink-0">To</span>
+                        <span class="text-gray-700">{{ session('user.email') }}</span>
+                    </div>
                 </div>
-            </div>
-            @endif
+                @endif
 
-            <div class="px-4 pt-2 pb-2">
-                <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
-                    <div id="replyEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                {{-- CC row (email channel only) --}}
+                @if($ticket->email_thread_id || $ticket->channel === 'email')
+                <div class="px-4 pt-1" id="ccRow">
+                    <div class="flex flex-wrap items-center gap-1 min-h-[30px] px-2 py-1 cursor-text"
+                         onclick="document.getElementById('ccInput').focus()">
+                        <span class="text-[11px] font-semibold text-gray-500 w-5 shrink-0">CC</span>
+                        <div id="ccTagsContainer" class="flex flex-wrap gap-1 items-center"></div>
+                        <input type="text" id="ccInput"
+                               placeholder="Add email, press Enter…"
+                               class="text-xs border-none bg-transparent outline-none flex-1 min-w-40 placeholder-gray-300 py-0.5"
+                               onkeydown="handleCcKeydown(event)"
+                               onblur="commitCcInput()"
+                               onpaste="handleCcPaste(event)">
+                    </div>
+                </div>
+                @endif
+
+                <div class="px-4 pt-2 pb-2">
+                    <div class="bg-white border border-gray-300 rounded-lg overflow-hidden">
+                        <div id="replyEditor" style="min-height: 100px; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+
+                    {{-- Attachment Preview --}}
+                    <div id="attachmentPreview" style="display:none" class="mt-2 flex-wrap gap-2"></div>
+
+                    {{-- Hidden file input --}}
+                    <input type="file" id="attachmentInput" multiple class="hidden"
+                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
+
+                    <div class="flex items-center justify-end mt-2 mb-1 gap-2">
+                        <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
+                        <button onclick="sendReply()" id="sendBtn"
+                            class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg id="sendIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+                            </svg>
+                            <svg id="sendSpinner" class="hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Send Reply
+                        </button>
+                    </div>
                 </div>
 
-                {{-- Attachment Preview --}}
-                <div id="attachmentPreview" style="display:none" class="mt-2 flex-wrap gap-2"></div>
-
-                {{-- Hidden file input --}}
-                <input type="file" id="attachmentInput" multiple class="hidden"
-                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.csv">
-
-                <div class="flex items-center justify-end mt-2 mb-1 gap-2">
-                    <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
-                    <button onclick="sendReply()" id="sendBtn"
-                        class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg id="sendIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
-                        </svg>
-                        <svg id="sendSpinner" class="hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                        Send Reply
-                    </button>
-                </div>
             </div>
         </div>
     </div>
 
     {{-- ═══ RIGHT: Properties (read-only) ═══ --}}
-    <div class="hidden xl:block w-72 bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto shrink-0">
+    <div id="ticketRightPanel" class="hidden xl:flex xl:flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto shrink-0" style="width:288px;transition:width .2s ease,opacity .2s ease;">
         <div class="p-5">
             <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide mb-4">Properties</h4>
             <div class="space-y-3">
@@ -359,8 +400,44 @@
                             {{ $ticket->created_at->setTimezone('Asia/Jakarta')->format('d M Y, H:i') }} WIB
                         </p>
                     </div>
+
+                    {{-- Created By --}}
+                    @if($ticket->submitted_by_name || $ticket->submitted_by_email)
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">Created By</label>
+                        <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                            {{ $ticket->submitted_by_name ?? $ticket->submitted_by_email }}
+                        </p>
+                    </div>
+                    @endif
                 </div>
 
+                {{-- Customer Actions --}}
+                @if(!in_array($ticket->jarvies_status, ['closed', 'cancel']))
+                <div class="pt-4 border-t border-gray-100 space-y-2">
+                    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Actions</p>
+
+                    {{-- Close Ticket --}}
+                    <button onclick="customerCloseTicket()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border transition-all
+                                   bg-green-50 text-green-700 border-green-200 hover:bg-green-100">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Close Ticket
+                    </button>
+
+                    {{-- Cancel Ticket --}}
+                    <button onclick="customerCancelTicket()"
+                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border transition-all
+                                   bg-red-50 text-red-600 border-red-200 hover:bg-red-100">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Cancel Ticket
+                    </button>
+                </div>
+                @endif
 
             </div>
         </div>
@@ -914,31 +991,55 @@ function renderSidebarTickets(tickets) {
         return;
     }
 
+    const prioClsMap = {
+        'Very High': 'sb-prio-very-high',
+        'High':      'sb-prio-high',
+        'Medium':    'sb-prio-medium',
+        'Low':       'sb-prio-low',
+    };
+    const prioLabelMap = { 'Very High': 'V.High', 'High': 'High', 'Medium': 'Med', 'Low': 'Low' };
+    const statusClsMap = {
+        'open': 'sb-status-open', 'in_progress': 'sb-status-in_progress',
+        'closed': 'sb-status-closed', 'wait_to_close': 'sb-status-wait_to_close',
+        'hold': 'sb-status-hold', 'reply': 'sb-status-reply', 'cancel': 'sb-status-cancel',
+    };
+    const statusLabelMap = {
+        'open': 'Open', 'in_progress': 'In Progress', 'closed': 'Closed',
+        'wait_to_close': 'Waiting', 'hold': 'Hold', 'reply': 'Replied', 'cancel': 'Cancelled',
+    };
+
     list.innerHTML = tickets.map(t => {
-        const isActive  = t.ticket_id === ticketId;
-        const desc      = t.description || 'No description';
-        const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '…' : desc;
-        const lastDate  = t.last_message_at || t.created_at;
-        const timeAgo   = formatTimeAgo(new Date(lastDate));
-        const prioColors = {
-            'Very High': 'bg-purple-500',
-            'High':      'bg-red-400',
-            'Medium':    'bg-blue-400',
-            'Low':       'bg-green-400'
-        };
-        const prioDot  = prioColors[t.ticket_priority] || 'bg-gray-400';
-        const ticketNum = t.ticket_number || ('#' + t.ticket_id);
+        const isActive   = t.ticket_id === ticketId;
+        const ticketNum  = t.ticket_number || ('#' + t.ticket_id);
+        const desc       = t.description || 'No description';
+        const lastDate   = t.last_message_at || t.created_at;
+        const timeAgo    = formatTimeAgo(new Date(lastDate));
+
+        const prio      = t.ticket_priority || 'Medium';
+        const prioCls   = prioClsMap[prio] || 'sb-prio-medium';
+        const prioKey   = prioLabelMap[prio] || prio;
+
+        const stat      = t.status || 'open';
+        const sCls      = statusClsMap[stat] || 'sb-status-open';
+        const sLabel    = statusLabelMap[stat] || stat;
+
+        const unreadDot = (!isActive && t.has_unread)
+            ? `<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 self-center"></span>`
+            : '';
 
         return `
-            <a href="/tickets/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}">
-                <div class="flex items-center justify-between mb-0.5">
-                    <span class="text-xs font-semibold text-gray-800 truncate max-w-[140px]">${escHtml(ticketNum)}</span>
-                    <span class="text-[10px] text-gray-400 shrink-0 ml-1">${timeAgo}</span>
+            <a href="/tickets/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${escHtml(ticketNum)}">
+                <div class="flex items-start justify-between gap-1 mb-0.5">
+                    <span class="text-[11px] font-bold text-gray-800 truncate leading-tight">${escHtml(ticketNum)}</span>
+                    <div class="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                        ${unreadDot}
+                        <span class="text-[9px] text-gray-400">${timeAgo}</span>
+                    </div>
                 </div>
-                <p class="text-[11px] text-gray-500 truncate mb-1">${escHtml(shortDesc)}</p>
-                <div class="flex items-center gap-1.5">
-                    <div class="w-1.5 h-1.5 rounded-full ${prioDot} shrink-0"></div>
-                    <span class="text-[10px] text-gray-400">${t.ticket_priority || 'Medium'}</span>
+                <p class="text-[10px] text-gray-500 truncate mb-1.5 leading-snug">${escHtml(desc)}</p>
+                <div class="flex items-center gap-1 flex-wrap">
+                    <span class="sb-badge ${prioCls}">${prioKey}</span>
+                    <span class="sb-badge ${sCls}">${sLabel}</span>
                 </div>
             </a>`;
     }).join('');
@@ -949,7 +1050,9 @@ function filterSidebarTickets() {
     if (!term) { renderSidebarTickets(allSidebarTickets); return; }
     const filtered = allSidebarTickets.filter(t =>
         (t.ticket_number && t.ticket_number.toLowerCase().includes(term)) ||
-        (t.description && t.description.toLowerCase().includes(term))
+        (t.description && t.description.toLowerCase().includes(term)) ||
+        (t.status && t.status.toLowerCase().includes(term)) ||
+        (t.jarvies_status && t.jarvies_status.toLowerCase().includes(term))
     );
     renderSidebarTickets(filtered);
 }
@@ -1059,6 +1162,79 @@ function showNotification(msg, type = 'info') {
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 350); }, 3000);
+}
+
+// ==================== PANEL TOGGLES ====================
+function toggleTicketRightPanel() {
+    const panel        = document.getElementById('ticketRightPanel');
+    const iconCollapse = document.getElementById('rightPanelIconCollapse');
+    const iconExpand   = document.getElementById('rightPanelIconExpand');
+    if (!panel) return;
+    const isExpanded = panel.style.width !== '0px';
+    panel.style.width    = isExpanded ? '0px'   : '288px';
+    panel.style.opacity  = isExpanded ? '0'     : '1';
+    panel.style.overflow = isExpanded ? 'hidden' : '';
+    if (iconCollapse) iconCollapse.classList.toggle('hidden', !isExpanded);
+    if (iconExpand)   iconExpand.classList.toggle('hidden', isExpanded);
+}
+
+function toggleReplyBox() {
+    const inner    = document.getElementById('replyComposeInner');
+    const iconDown = document.getElementById('replyToggleIconDown');
+    const iconUp   = document.getElementById('replyToggleIconUp');
+    if (!inner) return;
+    const isExpanded = inner.style.maxHeight !== '0px';
+    inner.style.maxHeight = isExpanded ? '0px'   : '600px';
+    inner.style.opacity   = isExpanded ? '0'     : '1';
+    if (iconDown) iconDown.classList.toggle('hidden', isExpanded);
+    if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
+}
+
+// ==================== CUSTOMER ACTIONS ====================
+async function customerCloseTicket() {
+    if (!confirm('Are you sure you want to close this ticket? This indicates your issue has been resolved.')) return;
+
+    try {
+        const res = await fetch(`/tickets/${ticketId}/close`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            showToast(data.message || 'Failed to close ticket.', 'error');
+        }
+    } catch (e) {
+        showToast('An error occurred.', 'error');
+    }
+}
+
+async function customerCancelTicket() {
+    if (!confirm('Are you sure you want to cancel this ticket? This action cannot be undone.')) return;
+
+    try {
+        const res = await fetch(`/tickets/${ticketId}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => window.location.reload(), 1200);
+        } else {
+            showToast(data.message || 'Failed to cancel ticket.', 'error');
+        }
+    } catch (e) {
+        showToast('An error occurred.', 'error');
+    }
 }
 
 

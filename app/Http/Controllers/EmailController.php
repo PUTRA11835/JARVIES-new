@@ -34,7 +34,7 @@ class EmailController extends Controller
         );
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Gagal mendapatkan access token: ' . $response->body());
+            throw new \RuntimeException('Failed to obtain access token: ' . $response->body());
         }
 
         return $response->json('access_token');
@@ -606,7 +606,7 @@ class EmailController extends Controller
 
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Gagal mengakses inbox: ' . $e->getMessage(),
+                'message' => 'Failed to access inbox: ' . $e->getMessage(),
             ], 500);
         }
     }

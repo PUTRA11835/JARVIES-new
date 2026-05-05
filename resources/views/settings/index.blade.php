@@ -372,10 +372,29 @@ function saveSettings() {
     try {
         localStorage.setItem(_PREFS_KEY, JSON.stringify(_prefs));
         applyTheme(_prefs);
-        showToast('Settings saved successfully!', 'success', 'Saved');
-    } catch(e) {
-        showToast('Could not save settings.', 'error', 'Error');
-    }
+    } catch(e) {}
+
+    // Persist to server DB so settings survive logout and work across devices
+    fetch('{{ route("settings.preferences") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify(_prefs),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Settings saved successfully!', 'success', 'Saved');
+        } else {
+            showToast('Could not save settings to server.', 'error', 'Error');
+        }
+    })
+    .catch(function() {
+        showToast('Settings saved locally only.', 'warning', 'Offline');
+    });
 }
 
 // ── Reset ──
@@ -386,8 +405,23 @@ function resetSettings() {
     localStorage.removeItem('jarvies_ticket_states');
     _prefs = Object.assign({}, _DEFAULT);
     applyTheme(_prefs);
-    showToast('Settings reset to default.', 'success', 'Reset');
-    setTimeout(function() { location.reload(); }, 800);
+
+    // Also reset on server
+    fetch('{{ route("settings.reset") }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+    .then(function() {
+        showToast('Settings reset to default.', 'success', 'Reset');
+        setTimeout(function() { location.reload(); }, 800);
+    })
+    .catch(function() {
+        showToast('Settings reset locally.', 'success', 'Reset');
+        setTimeout(function() { location.reload(); }, 800);
+    });
 }
 
 // ── Clear notification history ──

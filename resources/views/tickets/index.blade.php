@@ -27,109 +27,172 @@
 
 @section('content')
 @php
-    $userRole = session('user.role.id', 3);
-    $userId = session('user.id', 0);
-    $isAdmin = $userRole === 1;
-    $isCustomer = $userRole === 3;
+    $userRole        = session('user.role.id', 3);
+    $userId          = session('user.id', 0);
+    $isAdmin         = $userRole === 1;
+    $isCustomerAdmin = $userRole === 3 && session('user.can_view_all_tickets', false);
+    $userEmail       = session('user.email', '');
 @endphp
 
+{{-- My / All Tickets Toggle — visible only for customer admin --}}
+@if($isCustomerAdmin)
+<div class="mb-4 flex items-center gap-2">
+    <button id="btnMyTickets" onclick="setTicketScope('mine')"
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        My Tickets
+    </button>
+    <button id="btnAllTickets" onclick="setTicketScope('all')"
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        All Tickets
+    </button>
+    <span id="ticketScopeLabel" class="text-xs text-gray-400 ml-1">Showing your tickets</span>
+</div>
+@endif
 
 {{-- Status Filter Cards --}}
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-    @php
-        $filters = [
-            ['id' => 'all', 'label' => 'Total', 'count' => 'totalCount', 'active' => true],
-            ['id' => 'in process', 'label' => 'In Process', 'count' => 'processCount', 'color' => 'blue'],
-            ['id' => 'author action', 'label' => 'Author Action', 'count' => 'authorCount', 'color' => 'amber'],
-            ['id' => 'proposed solution', 'label' => 'Proposed', 'count' => 'proposedCount', 'color' => 'purple'],
-            ['id' => 'sent in to SAP', 'label' => 'Sent to SAP', 'count' => 'sapCount', 'color' => 'indigo'],
-            ['id' => 'closed', 'label' => 'Closed', 'count' => 'closedCount', 'color' => 'green'],
-        ];
-    @endphp
-
-    @foreach($filters as $filter)
-    <div id="filter{{ ucfirst(str_replace(' ', '', $filter['id'])) }}" 
-         class="stat-card bg-white rounded-xl p-4 {{ $filter['active'] ?? false ? 'border-2 border-red-600' : 'border border-gray-100' }} cursor-pointer hover:shadow-md transition-all" 
-         onclick="filterTickets('{{ $filter['id'] }}')">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ $filter['label'] }}</p>
-        <p class="text-2xl font-bold text-{{ $filter['color'] ?? 'gray' }}-600 mt-1" id="{{ $filter['count'] }}">0</p>
-    </div>
-    @endforeach
-</div>
-
-{{-- Advanced Filters --}}
-<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-            <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter By</label>
-            <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
-                <option value="">Select Type</option>
-                <option value="jarvies_status">Jarvies Status</option>
-                <option value="status">Status</option>
-                <option value="type">Type</option>
-                <option value="priority">Priority</option>
-            </select>
-        </div>
-        <div>
-            <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter Value</label>
-            <select id="filterValueSelect" disabled class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white disabled:bg-gray-50">
-                <option value="">Select Type First</option>
-            </select>
-        </div>
-        <div class="md:col-span-2">
-            <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Search</label>
-            <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
-                    </svg>
-                </div>
-                <input type="text" id="searchInput" placeholder="Search by ID, description, customer..." class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white" onkeyup="searchTickets()">
+<div class="mb-4">
+    <button onclick="toggleSection('statsSection', 'statsChevron')"
+            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
+        <svg id="statsChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+        <span class="uppercase tracking-wide">Status Info</span>
+    </button>
+    <div id="statsSection" class="overflow-hidden transition-all duration-300" style="max-height: 200px;">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pb-2">
+            <div id="filterAll" class="bg-white rounded-xl border-2 border-red-600 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('all')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total</p>
+                <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
+            </div>
+            <div id="filterInprocess" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">In Process</p>
+                <p class="text-2xl font-bold text-blue-600" id="processCount">0</p>
+            </div>
+            <div id="filterAuthorAction" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Author Action</p>
+                <p class="text-2xl font-bold text-amber-600" id="authorCount">0</p>
+            </div>
+            <div id="filterProposedSolution" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proposed</p>
+                <p class="text-2xl font-bold text-purple-600" id="proposedCount">0</p>
+            </div>
+            <div id="filterSentInToSAP" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Sent to SAP</p>
+                <p class="text-2xl font-bold text-indigo-600" id="sapCount">0</p>
+            </div>
+            <div id="filterClosed" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Closed</p>
+                <p class="text-2xl font-bold text-green-600" id="closedCount">0</p>
             </div>
         </div>
     </div>
-    <div class="flex gap-3 justify-end mt-5 pt-5 border-t border-gray-100">
-        <button onclick="applyFilters()" class="inline-flex items-center gap-2 px-6 py-3 bg-red-800 text-white text-sm font-semibold rounded-xl hover:bg-red-900 transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
-            </svg>
-            Apply Filters
-        </button>
-        <button onclick="resetFilters()" class="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 hover:bg-gray-50 transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/>
-            </svg>
-            Reset
-        </button>
+</div>
+
+{{-- Filters & Search --}}
+<div class="mb-6">
+    <button onclick="toggleSection('filtersSection', 'filtersChevron')"
+            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
+        <svg id="filtersChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+        <span class="uppercase tracking-wide">Filters &amp; Search</span>
+    </button>
+    <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter By</label>
+                    <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                        <option value="">Select Type</option>
+                        <option value="status">Status</option>
+                        <option value="type">Type</option>
+                        <option value="priority">Priority</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter Value</label>
+                    <select id="filterValueSelect" disabled class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white disabled:bg-gray-50">
+                        <option value="">Select Type First</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Search</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                            </svg>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="Search by ID, description, customer..." autocomplete="off"
+                               class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white"
+                               onkeyup="applyFilters()">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 justify-end mt-4 pt-4 border-t border-gray-100">
+                <button onclick="applyFilters()" class="inline-flex items-center gap-2 px-5 py-2 bg-red-800 text-white text-sm font-semibold rounded-xl hover:bg-red-900 transition-all">
+                    Apply Filters
+                </button>
+                <button onclick="resetFilters()" class="inline-flex items-center gap-2 px-5 py-2 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 hover:bg-gray-50 transition-all">
+                    Reset
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
-{{-- Pagination Controls --}}
-<div class="flex items-center justify-center mb-6">
-    <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1.5 shadow-sm">
-        <button onclick="previousPage()" id="btnPrevPage" disabled class="inline-flex items-center justify-center w-9 h-9 rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+{{-- Pagination --}}
+<div class="flex items-center justify-between mb-4">
+    <span class="text-sm text-gray-500">
+        <span id="currentRangeStart">1</span>-<span id="currentRangeEnd">20</span>
+        of <span id="totalItems">0</span> tickets
+    </span>
+    <div class="flex items-center gap-1">
+        <button onclick="previousPage()" id="btnPrevPage" disabled
+                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.75 19.5 8.25 12l7.5-7.5"/>
             </svg>
         </button>
-        <div class="px-4 py-1.5">
-            <span class="text-sm font-medium text-gray-700">
-                <span id="currentRangeStart">1</span>-<span id="currentRangeEnd">20</span>
-            </span>
-            <span class="text-sm text-gray-400 mx-1.5">of</span>
-            <span class="text-sm font-medium text-gray-700" id="totalItems">0</span>
-        </div>
-        <button onclick="nextPage()" id="btnNextPage" class="inline-flex items-center justify-center w-9 h-9 rounded-md text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button onclick="nextPage()" id="btnNextPage"
+                class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
             </svg>
         </button>
     </div>
 </div>
 
-{{-- Tickets List --}}
-<div id="ticketsContainer" class="space-y-3">
-    <div id="ticketsListBody"></div>
+{{-- Ticket Table --}}
+<div id="ticketsContainer" class="hidden">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-auto" style="max-height: calc(100vh - 380px); min-height: 200px;">
+            <table class="w-full text-sm border-collapse" style="min-width: 900px;">
+                <thead class="sticky top-0 z-10 bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:110px;">Last Update</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px; left:110px;">Ticket</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:280px;">Description</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Status</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Priority</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Assigned To</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Created By</th>
+                    </tr>
+                </thead>
+                <tbody id="ticketsListBody" class="divide-y divide-gray-100 bg-white"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 {{-- Loading State --}}
@@ -157,171 +220,97 @@
     </button>
 </div>
 
-{{-- Ticket Detail Modal --}}
-<div id="ticketDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-hidden">
-    <div class="h-full flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl">
-            
-            {{-- Modal Header --}}
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900" id="modalTicketTitle">Ticket Details</h3>
-                        <p class="text-sm text-gray-500" id="modalTicketId">#0</p>
-                    </div>
-                </div>
-                <button onclick="closeTicketDetail()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
-                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            {{-- Modal Body --}}
-            <div class="flex-1 flex overflow-hidden">
-                
-                {{-- Messages Area --}}
-                <div class="flex-1 flex flex-col border-r border-gray-200">
-                    <div class="flex-1 overflow-y-auto p-6 space-y-4" id="ticketMessagesContainer">
-                        {{-- Messages populated by JavaScript --}}
-                    </div>
-                    
-                    {{-- Comment Input --}}
-                    <div class="p-4 border-t border-gray-200 bg-gray-50">
-                        <div class="flex gap-3">
-                            <input type="text" id="commentInput" placeholder="Add a comment..." 
-                                   class="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                            <button onclick="addComment()" 
-                                    class="px-6 py-3 bg-red-800 text-white text-sm font-semibold rounded-xl hover:bg-red-900 transition-colors">
-                                Send
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Properties Panel --}}
-                <div class="w-80 bg-gray-50 p-6 overflow-y-auto">
-                    <h4 class="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Properties</h4>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Jarvies Status</label>
-                            <select id="detailJarviesStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white {{ $isCustomer ? 'opacity-60' : '' }}" {{ $isCustomer ? 'disabled' : '' }}>
-                                <option value="in process">In Process</option>
-                                <option value="author action">Author Action</option>
-                                <option value="proposed solution">Proposed Solution</option>
-                                <option value="sent in to SAP">Sent to SAP</option>
-                                <option value="closed">Closed</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Priority</label>
-                            <select id="detailPriority" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white {{ $isCustomer ? 'opacity-60' : '' }}" {{ $isCustomer ? 'disabled' : '' }}>
-                                <option value="">—</option>
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Ticket Type</label>
-                            <input type="text" id="detailType" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700">
-                        </div>
-
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Customer</label>
-                            <input type="text" id="detailCustomer" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                        </div>
-
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Assigned To</label>
-                            <input type="text" id="detailAgent" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                        </div>
-
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Team Members</label>
-                            <div id="detailMembers" class="min-h-9 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600 flex flex-wrap gap-1.5"></div>
-                        </div>
-                        
-                        <div>
-                            <label class="text-xs font-semibold text-gray-600 mb-2 block">Created</label>
-                            <input type="text" id="detailCreated" disabled class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                        </div>
-                        
-                        @if($isAdmin)
-                        <div class="pt-4 border-t border-gray-200">
-                            <button onclick="updateTicket()" class="w-full px-4 py-3 bg-red-800 text-white text-sm font-semibold rounded-xl hover:bg-red-900 transition-colors">
-                                Update Ticket
-                            </button>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </div>
-</div>
-
 @endsection
 
 @push('styles')
 <style>
-.stat-card {
-    transition: all 0.2s ease;
+/* Collapsible sections */
+#statsSection, #filtersSection {
+    transition: max-height 0.25s ease, opacity 0.2s ease;
 }
-.stat-card:hover {
-    transform: translateY(-2px);
+#statsSection[style*="max-height: 0"], #filtersSection[style*="max-height: 0"] { opacity: 0; }
+#statsChevron, #filtersChevron { transition: transform 0.2s ease; }
+
+/* Table rows */
+#ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
+#ticketsListBody tr:hover { background: #fafafa; }
+
+/* Unread row — blue (agent has replied, awaiting customer read) */
+#ticketsListBody tr.ticket-unread {
+    background: #f0f7ff;
 }
+#ticketsListBody tr.ticket-unread:hover {
+    background: #e6f0fd;
+}
+#ticketsListBody tr.ticket-unread td:first-child {
+    border-left: 3px solid #93c5fd;
+    padding-left: 10px;
+}
+#ticketsListBody tr.ticket-unread td:first-child,
+#ticketsListBody tr.ticket-unread td:nth-child(2) {
+    background: #f0f7ff;
+}
+#ticketsListBody tr.ticket-unread:hover td:first-child,
+#ticketsListBody tr.ticket-unread:hover td:nth-child(2) {
+    background: #e6f0fd;
+}
+
+/* Unread dot */
+.unread-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 5px;
+    flex-shrink: 0;
+    background: #3b82f6;
+    box-shadow: 0 0 0 2px #dbeafe;
+}
+
+/* Sticky columns shadow */
+#ticketsListBody tr td:first-child,
+#ticketsListBody tr td:nth-child(2) {
+    z-index: 5;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+}
+#ticketsListBody tr:hover td:first-child,
+#ticketsListBody tr:hover td:nth-child(2) { background: #fafafa; }
+
+/* Stat card active */
+.stat-card-active { border-color: #991b1b !important; border-width: 2px !important; }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-// ==================== GLOBAL STATE ====================
-let allTickets = [];
+// ==================== STATE ====================
+let allTickets      = [];
 let filteredTickets = [];
-let currentFilter = 'all';
-let currentPage = 1;
-let itemsPerPage = 20;
-let totalItems = 0;
-let totalPages = 0;
-let currentTicketId = null;
+let currentFilter   = 'all';
+let ticketScope     = 'mine';   // 'mine' | 'all'  (only relevant for customer admin)
+let currentPage     = 1;
+let itemsPerPage    = 20;
+let totalItems      = 0;
+let totalPages      = 0;
 
-const USER_ROLE = {{ $userRole }};
-const USER_ID = {{ $userId }};
-const IS_ADMIN = {{ $isAdmin ? 'true' : 'false' }};
-const FETCH_URL = '{{ route("tickets.ajax.fetch") }}';
-const CSRF_TOKEN = '{{ csrf_token() }}';
+const FETCH_URL         = '{{ route("tickets.ajax.fetch") }}';
+const CSRF_TOKEN        = '{{ csrf_token() }}';
+const IS_CUSTOMER_ADMIN = {{ $isCustomerAdmin ? 'true' : 'false' }};
+const USER_EMAIL        = '{{ $userEmail }}';
 
-// ==================== INITIALIZATION ====================
+// ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Tickets page initialized', { USER_ROLE, USER_ID, IS_ADMIN });
     loadTickets();
-    initializeEventListeners();
     startPolling();
 
-    // Auto-open ticket dari query param ?open=ID (dari showMyTicket redirect)
     const urlParams = new URLSearchParams(window.location.search);
     const openId = parseInt(urlParams.get('open'));
-    if (openId) {
-        // Langsung navigasi ke halaman detail tiket
-        window.location.href = `/tickets/${openId}`;
-    }
+    if (openId) window.location.href = `/tickets/${openId}`;
 });
 
-// ==================== POLLING (silent refresh setiap 30 detik) ====================
+// ==================== POLLING ====================
 function startPolling() {
     setInterval(async () => {
-        // Jangan poll jika modal sedang terbuka (user sedang lihat detail)
-        if (currentTicketId) return;
-
         try {
             const res = await fetch(FETCH_URL, {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
@@ -331,549 +320,278 @@ function startPolling() {
             const data = await res.json();
             if (!data.success || !data.data) return;
 
-            const fresh = data.data.sort((a, b) => {
-                const dA = a.last_message_at || a.created_at;
-                const dB = b.last_message_at || b.created_at;
-                return new Date(dB) - new Date(dA);
-            });
+            const fresh = data.data.sort((a, b) =>
+                new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at)
+            );
 
-            // Deteksi perubahan: jumlah tiket berbeda atau ada last_message_at yang lebih baru
             const hasChanges = fresh.length !== allTickets.length ||
                 fresh.some(t => {
-                    const existing = allTickets.find(e => e.ticket_id === t.ticket_id);
-                    if (!existing) return true; // tiket baru
-                    return (t.last_message_at || '') !== (existing.last_message_at || '');
+                    const e = allTickets.find(x => x.ticket_id === t.ticket_id);
+                    if (!e) return true;
+                    return (t.last_message_at || '') !== (e.last_message_at || '');
                 });
 
             if (!hasChanges) return;
-
             allTickets = fresh;
-            // Terapkan filter yang sedang aktif
-            if (currentFilter === 'all') {
-                filteredTickets = allTickets;
-            } else {
-                filteredTickets = allTickets.filter(t => t.jarvies_status === currentFilter);
-            }
+            const freshBase = getScopedTickets();
+            filteredTickets = currentFilter === 'all'
+                ? freshBase
+                : freshBase.filter(t => t.jarvies_status === currentFilter);
             updateStats();
             renderTickets();
-        } catch {
-            // Gagal poll — abaikan saja, coba lagi di interval berikutnya
-        }
+        } catch {}
     }, 30000);
 }
 
-function initializeEventListeners() {
-    // ESC key closes modal
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeTicketDetail();
-    });
-    
-    // Modal backdrop click
-    const modal = document.getElementById('ticketDetailModal');
-    modal?.addEventListener('click', e => {
-        if (e.target.id === 'ticketDetailModal') closeTicketDetail();
-    });
-}
-
-// ==================== API FUNCTIONS ====================
+// ==================== LOAD ====================
 async function loadTickets() {
     try {
         showLoading(true);
-        
-        const response = await fetch(FETCH_URL, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': CSRF_TOKEN
-            },
+        const res = await fetch(FETCH_URL, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_TOKEN },
             credentials: 'same-origin'
         });
-        
-        if (response.status === 401) {
-            window.location.href = '{{ route("login") }}';
-            return;
-        }
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
+        if (res.status === 401) { window.location.href = '{{ route("login") }}'; return; }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         if (data.success && data.data) {
-            allTickets = data.data.sort((a, b) => {
-                const dateA = a.last_message_at || a.created_at;
-                const dateB = b.last_message_at || b.created_at;
-                return new Date(dateB) - new Date(dateA);
-            });
-            filteredTickets = allTickets;
+            allTickets = data.data.sort((a, b) =>
+                new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at)
+            );
+            filteredTickets = getScopedTickets();
             updateStats();
             renderTickets();
         } else {
             showEmpty();
         }
-    } catch (error) {
-        console.error('Load tickets error:', error);
-        showNotification('Failed to load tickets: ' + error.message, 'error');
+    } catch (err) {
+        showToast('Failed to load tickets: ' + err.message, 'error');
         showEmpty();
     }
 }
 
-async function addComment() {
-    const commentInput = document.getElementById('commentInput');
-    const comment = commentInput.value.trim();
-    
-    if (!comment) {
-        showNotification('Please enter a comment', 'error');
-        return;
-    }
-    
-    if (!currentTicketId) {
-        showNotification('No ticket selected', 'error');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/tickets/${currentTicketId}/comment`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN
-            },
-            body: JSON.stringify({ comment })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification('Message sent successfully', 'success');
-            commentInput.value = '';
-            await loadTicketMessages(currentTicketId);
-        } else {
-            showNotification(data.message || 'Failed to send message', 'error');
-        }
-    } catch (error) {
-        console.error('Add comment error:', error);
-        showNotification('Failed to add comment', 'error');
-    }
+// ==================== STATS ====================
+function updateStats() {
+    const base = getScopedTickets();
+    document.getElementById('totalCount').textContent    = base.length;
+    document.getElementById('processCount').textContent  = base.filter(t => t.jarvies_status === 'in process').length;
+    document.getElementById('authorCount').textContent   = base.filter(t => t.jarvies_status === 'author action').length;
+    document.getElementById('proposedCount').textContent = base.filter(t => t.jarvies_status === 'proposed solution').length;
+    document.getElementById('sapCount').textContent      = base.filter(t => t.jarvies_status === 'sent in to SAP').length;
+    document.getElementById('closedCount').textContent   = base.filter(t => t.jarvies_status === 'closed').length;
 }
 
-async function updateTicket() {
-    if (!currentTicketId) return;
-    
-    const data = {
-        jarvies_status: document.getElementById('detailJarviesStatus').value,
-        ticket_priority: document.getElementById('detailPriority').value
-    };
-    
-    try {
-        const response = await fetch(`/tickets/${currentTicketId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification('Ticket updated successfully', 'success');
-            closeTicketDetail();
-            loadTickets(); // Reload tickets
-        } else {
-            showNotification(result.message || 'Failed to update ticket', 'error');
-        }
-    } catch (error) {
-        console.error('Update ticket error:', error);
-        showNotification('Failed to update ticket', 'error');
-    }
-}
-
-// ==================== UI RENDERING ====================
+// ==================== RENDER ====================
 function renderTickets() {
-    const listBody = document.getElementById('ticketsListBody');
     showLoading(false);
-    
     totalItems = filteredTickets.length;
     totalPages = Math.ceil(totalItems / itemsPerPage);
 
-    if (totalItems === 0) {
-        showEmpty();
-        updatePagination();
-        return;
-    }
+    if (totalItems === 0) { showEmpty(); updatePagination(); return; }
 
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('ticketsContainer').classList.remove('hidden');
 
     const start = (currentPage - 1) * itemsPerPage;
-    const end = Math.min(start + itemsPerPage, totalItems);
-    const paginatedTickets = filteredTickets.slice(start, end);
-
-    listBody.innerHTML = paginatedTickets.map(ticket => createTicketCard(ticket)).join('');
+    const end   = Math.min(start + itemsPerPage, totalItems);
+    document.getElementById('ticketsListBody').innerHTML =
+        filteredTickets.slice(start, end).map(t => createTicketRow(t)).join('');
     updatePagination();
 }
 
-function createTicketCard(ticket) {
-    const customerName = ticket.customer?.customer_name || ticket.customer?.company_name || 'Unknown';
-    const agentName = ticket.employee?.employee_name || 'Unassigned';
-    const lastActivityDate = ticket.last_message_at || ticket.created_at;
-    const createdDate = formatTimeAgo(lastActivityDate);
+function createTicketRow(ticket) {
+    const isStaging = ticket.is_staging === true;
+    const href      = isStaging ? `/tickets/staging/${ticket.staging_id}` : `/tickets/${ticket.ticket_id}`;
 
-    const priorityColors = {
-        'Low': 'bg-green-500',
-        'Medium': 'bg-blue-500',
-        'High': 'bg-red-500'
+    const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
+    const createdAt    = new Date(ticket.created_at);
+    const fmt   = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
+    const fmtDT = d => d.toLocaleString('en-GB',    { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const lastUpdateStr   = relativeTime(lastActivity);
+    const lastUpdateTitle = fmtDT(lastActivity);
+    const dateStr         = fmt(createdAt);
+
+    // Unread: agent replied more recently than customer's last reply
+    const lastAgent    = ticket.last_agent_reply_at  ? new Date(ticket.last_agent_reply_at)  : null;
+    const lastCustomer = ticket.last_customer_reply_at ? new Date(ticket.last_customer_reply_at) : null;
+    const hasUnread    = !isStaging && (ticket.has_unread || (lastAgent && (!lastCustomer || lastAgent > lastCustomer)));
+
+    const unreadCls   = hasUnread ? 'ticket-unread' : '';
+    const dot         = hasUnread ? '<span class="unread-dot" title="New reply from Helpdesk"></span>' : '';
+    const timeColor   = hasUnread ? 'text-blue-600 font-semibold' : 'text-gray-500';
+    const numColor    = hasUnread ? 'text-blue-700' : 'text-gray-800';
+
+    const jarviesMap = {
+        'initial':            { label: 'Initial',           cls: 'bg-gray-100 text-gray-600' },
+        'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-700' },
+        'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-700' },
+        'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-700' },
+        'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-700' },
+        'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-700' },
+        'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
     };
-
-    const statusColors = {
-        'initial': 'bg-gray-100 text-gray-500',
-        'in process': 'bg-blue-100 text-blue-700',
-        'author action': 'bg-amber-100 text-amber-700',
-        'proposed solution': 'bg-purple-100 text-purple-700',
-        'sent in to SAP': 'bg-indigo-100 text-indigo-700',
-        'closed': 'bg-green-100 text-green-700'
+    const priorityMap = {
+        'Very High': 'bg-purple-100 text-purple-700',
+        'High':      'bg-red-100 text-red-700',
+        'Medium':    'bg-blue-100 text-blue-700',
+        'Low':       'bg-green-100 text-green-700',
     };
-
-    const typeColors = {
-        'Incident': 'bg-red-50 text-red-600',
-        'Service Request': 'bg-indigo-50 text-indigo-600',
+    const typeMap = {
+        'Incident':       'bg-red-50 text-red-600',
+        'Service Request':'bg-indigo-50 text-indigo-600',
         'Change Request': 'bg-amber-50 text-amber-600',
-        'Consult': 'bg-teal-50 text-teal-600'
+        'Consult':        'bg-teal-50 text-teal-600',
     };
 
-    const ticketTypeBadge = ticket.ticket_type
-        ? `<span class="inline-flex px-2 py-0.5 rounded text-xs font-medium ${typeColors[ticket.ticket_type] || 'bg-gray-100 text-gray-600'}">${ticket.ticket_type}</span>`
-        : '';
+    const jInfo       = isStaging
+        ? { label: 'Awaiting Validation', cls: 'bg-gray-100 text-gray-500 italic' }
+        : (jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status || '—', cls: 'bg-gray-100 text-gray-500' });
+    const priorityCls = priorityMap[ticket.ticket_priority] || 'bg-gray-100 text-gray-500';
+    const typeCls     = typeMap[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
+    const agentName   = ticket.employee?.employee_name || '<span class="text-gray-400 text-xs">Unassigned</span>';
 
-    const channelIcon = ticket.channel === 'email'
-        ? `<svg class="w-3.5 h-3.5 text-blue-400" title="Email" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`
-        : `<svg class="w-3.5 h-3.5 text-gray-400" title="Web" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>`;
+    const badge = (label, cls) => `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${cls}">${label}</span>`;
 
-    const priorityLabel = ticket.ticket_priority || '—';
-    const priorityDot = ticket.ticket_priority
-        ? `<div class="w-2 h-2 rounded-full ${priorityColors[ticket.ticket_priority]}"></div>`
-        : `<div class="w-2 h-2 rounded-full bg-gray-300"></div>`;
-
-    const isStaging  = ticket.is_staging === true;
-    const cardHref   = isStaging ? `/tickets/staging/${ticket.staging_id}` : `/tickets/${ticket.ticket_id}`;
-    const hoverClass = isStaging ? 'hover:border-gray-300 hover:shadow-md' : 'hover:border-gray-300 hover:shadow-md';
-    const statusLabel = ticket.jarvies_status === 'initial' ? 'Initial' : (ticket.jarvies_status || 'Open');
-
-    return `
-        <a href="${cardHref}" class="group block bg-white border border-gray-200 rounded-xl ${hoverClass} transition-all">
-            <div class="flex items-start gap-4 p-4">
-                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=${isStaging ? 'aaaaaa' : '991b1b'}&color=fff&size=44&rounded=true"
-                     alt="${customerName}" class="w-11 h-11 rounded-full flex-shrink-0">
-
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1 flex-wrap">
-                        <span class="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold ${statusColors[ticket.jarvies_status] || 'bg-gray-100 text-gray-700'}">
-                            ${statusLabel}
-                        </span>
-                        ${isStaging ? '<span class="text-xs text-gray-400 italic">Awaiting validation</span>' : ticketTypeBadge}
-                    </div>
-
-                    <h3 class="text-sm font-semibold text-gray-900 mb-1 ${isStaging ? '' : 'group-hover:text-red-800'} transition-colors">
-                        ${ticket.description || 'No description'}
-                        <span class="text-gray-400 font-normal">${ticket.ticket_number ? ticket.ticket_number : ''}</span>
-                    </h3>
-
-                    <div class="flex items-center gap-3 text-xs text-gray-500">
-                        <span class="font-medium text-gray-700">${customerName}</span>
-                        <span>•</span>
-                        <span title="${formatDateTimeWIB(lastActivityDate)}">${createdDate}</span>
-                    </div>
-                </div>
-
-                <div class="flex flex-col items-end gap-2 flex-shrink-0">
-                    <div class="flex items-center gap-1.5">
-                        ${priorityDot}
-                        <span class="text-xs font-medium text-gray-600">${priorityLabel}</span>
-                    </div>
-
-                    <div class="flex items-center gap-1.5 text-xs text-gray-500">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                        </svg>
-                        <span class="truncate max-w-[100px]">${agentName}</span>
-                    </div>
-
-                    <div class="flex items-center gap-1">
-                        ${channelIcon}
-                    </div>
-                </div>
-            </div>
-        </a>
-    `;
+    return `<tr class="${unreadCls}" onclick="window.location='${href}'">
+        <td class="px-3 py-2.5 whitespace-nowrap sticky left-0 bg-white" title="${lastUpdateTitle}">
+            ${dot}<span class="text-xs ${timeColor}">${lastUpdateStr}</span>
+        </td>
+        <td class="px-3 py-2.5 whitespace-nowrap sticky bg-white border-r border-gray-100" style="left:110px;">
+            <span class="font-mono text-xs font-semibold ${numColor}">${ticket.ticket_number || (isStaging ? '(pending)' : '—')}</span>
+        </td>
+        <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:280px;max-width:360px;">
+            <span class="block truncate" title="${escapeHtml(ticket.description || '')}">${escapeHtml(ticket.description || '—')}</span>
+        </td>
+        <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap">${badge(jInfo.label, jInfo.cls)}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_priority ? badge(ticket.ticket_priority, priorityCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
+        <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_type ? badge(ticket.ticket_type, typeCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
+        <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${agentName}</td>
+        <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${escapeHtml(ticket.submitted_by_name || ticket.submitted_by_email || '—')}</td>
+    </tr>`;
 }
 
-function updateStats() {
-    document.getElementById('totalCount').textContent = allTickets.length;
-    document.getElementById('processCount').textContent = allTickets.filter(t => t.jarvies_status === 'in process').length;
-    document.getElementById('authorCount').textContent = allTickets.filter(t => t.jarvies_status === 'author action').length;
-    document.getElementById('proposedCount').textContent = allTickets.filter(t => t.jarvies_status === 'proposed solution').length;
-    document.getElementById('sapCount').textContent = allTickets.filter(t => t.jarvies_status === 'sent in to SAP').length;
-    document.getElementById('closedCount').textContent = allTickets.filter(t => t.jarvies_status === 'closed').length;
-}
-
+// ==================== PAGINATION ====================
 function updatePagination() {
     const start = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-    const end = Math.min(currentPage * itemsPerPage, totalItems);
-    
+    const end   = Math.min(currentPage * itemsPerPage, totalItems);
     document.getElementById('currentRangeStart').textContent = start;
-    document.getElementById('currentRangeEnd').textContent = end;
-    document.getElementById('totalItems').textContent = totalItems;
+    document.getElementById('currentRangeEnd').textContent   = end;
+    document.getElementById('totalItems').textContent        = totalItems;
     document.getElementById('btnPrevPage').disabled = currentPage === 1;
     document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
 }
 
-// ==================== MODAL FUNCTIONS ====================
-async function viewTicketDetail(ticketId) {
-    const ticket = allTickets.find(t => t.ticket_id === ticketId);
-    if (!ticket) return;
+function previousPage() { if (currentPage > 1)          { currentPage--; renderTickets(); window.scrollTo({top:0,behavior:'smooth'}); } }
+function nextPage()      { if (currentPage < totalPages) { currentPage++; renderTickets(); window.scrollTo({top:0,behavior:'smooth'}); } }
 
-    currentTicketId = ticketId;
-
-    document.getElementById('modalTicketTitle').textContent = ticket.description || 'Ticket Details';
-    document.getElementById('modalTicketId').textContent = ticket.ticket_number || 'Pending';
-
-    const customerName = ticket.customer?.customer_name || ticket.customer?.company_name || 'Customer';
-    const employeeName = ticket.employee?.employee_name || 'Unassigned';
-
-    document.getElementById('detailJarviesStatus').value = ticket.jarvies_status || 'in process';
-    document.getElementById('detailPriority').value = ticket.ticket_priority || '';
-    document.getElementById('detailType').value = ticket.ticket_type || '—';
-    document.getElementById('detailCustomer').value = customerName;
-    document.getElementById('detailAgent').value = employeeName;
-    document.getElementById('detailCreated').value = formatDateWIB(ticket.created_at);
-
-    // Team Members
-    const membersEl = document.getElementById('detailMembers');
-    if (ticket.members && ticket.members.length > 0) {
-        membersEl.innerHTML = ticket.members.map(m =>
-            `<span class="inline-flex px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">${escapeHtml(m.employee_name)}</span>`
-        ).join('');
-    } else {
-        membersEl.innerHTML = '<span class="text-gray-400 text-xs">None</span>';
-    }
-
-    document.getElementById('ticketDetailModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-
-    // Fetch & render messages dari server
-    await loadTicketMessages(ticketId);
+// ==================== SCOPE (My / All) ====================
+function getScopedTickets() {
+    if (!IS_CUSTOMER_ADMIN || ticketScope === 'all') return allTickets;
+    return allTickets.filter(t =>
+        (t.submitted_by_email || '').toLowerCase() === USER_EMAIL.toLowerCase()
+    );
 }
 
-async function loadTicketMessages(ticketId) {
-    const container = document.getElementById('ticketMessagesContainer');
-    container.innerHTML = `
-        <div class="flex items-center justify-center py-10 text-gray-400 text-sm">
-            <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            Loading messages...
-        </div>`;
+function setTicketScope(scope) {
+    ticketScope = scope;
+    currentPage = 1;
 
-    try {
-        const response = await fetch(`/tickets/${ticketId}/messages`, {
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-            credentials: 'same-origin'
-        });
-        const data = await response.json();
-
-        if (data.success && data.data.length > 0) {
-            container.innerHTML = data.data.map(msg => renderMessage(msg)).join('');
-            setupEmailFrames();
-            container.scrollTop = container.scrollHeight;
+    const btnMine = document.getElementById('btnMyTickets');
+    const btnAll  = document.getElementById('btnAllTickets');
+    const lbl     = document.getElementById('ticketScopeLabel');
+    if (btnMine && btnAll) {
+        if (scope === 'mine') {
+            btnMine.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800';
+            btnAll.className  = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
+            if (lbl) lbl.textContent = 'Showing your tickets';
         } else {
-            container.innerHTML = `
-                <div class="text-center py-10 text-gray-400 text-sm">
-                    <p>No messages yet. Be the first to reply.</p>
-                </div>`;
+            btnAll.className  = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800';
+            btnMine.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
+            if (lbl) lbl.textContent = 'Showing all company tickets';
         }
-    } catch (err) {
-        console.error('loadTicketMessages error:', err);
-        container.innerHTML = `<p class="text-center py-6 text-red-400 text-sm">Failed to load messages.</p>`;
-    }
-}
-
-function renderMessage(msg) {
-    const isCustomer  = msg.sender_type === 'customer';
-    const isSystem    = msg.sender_type === 'system';
-    const initials    = (msg.sender_name || '?').substring(0, 1).toUpperCase();
-    const timeAgo     = formatTimeAgo(msg.created_at);
-    const isEmail     = msg.channel === 'email';
-
-    const channelBadge = isEmail
-        ? `<span class="text-xs text-gray-400 ml-1 inline-flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>email</span>`
-        : '';
-
-    if (isSystem) {
-        return `
-            <div class="flex justify-center">
-                <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-                    ${escapeHtml(msg.message)}
-                </span>
-            </div>`;
     }
 
-    // Tentukan konten pesan: email channel → iframe HTML, web → plain/Quill HTML
-    let messageBody;
-    if (isEmail && msg.message_html) {
-        messageBody = `<iframe class="email-frame" data-srcdoc="${encodeURIComponent(msg.message_html)}"
-            sandbox="allow-same-origin"
-            style="width:100%;min-height:120px;border:none;display:block;"
-            scrolling="no"></iframe>`;
-    } else {
-        messageBody = `<p class="text-sm text-gray-800 whitespace-pre-wrap">${escapeHtml(msg.message || '')}</p>`;
-    }
-
-    // CC emails
-    const ccLine = msg.cc_emails
-        ? `<div class="text-xs text-gray-400 mt-1.5">CC: ${escapeHtml(msg.cc_emails)}</div>`
-        : '';
-
-    // Attachments (non-inline)
-    const attachmentsHtml = (msg.attachments && msg.attachments.length > 0)
-        ? `<div class="flex flex-wrap gap-2 mt-2">
-            ${msg.attachments.map(a => `
-                <a href="${escapeHtml(a.url || '#')}" target="_blank" rel="noopener noreferrer"
-                   class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:text-red-800 hover:border-red-300 transition-colors">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                    </svg>
-                    ${escapeHtml(a.file_name)}
-                </a>`).join('')}
-           </div>`
-        : '';
-
-    // Customer (saya) → kanan (flex-row-reverse), Employee/support → kiri
-    const avatarColor = isCustomer ? 'bg-red-600' : 'bg-blue-600';
-    return `
-        <div class="flex gap-3 ${isCustomer ? 'flex-row-reverse' : ''}">
-            <div class="w-9 h-9 ${avatarColor} rounded-full flex items-center justify-center flex-shrink-0">
-                <span class="text-xs font-bold text-white">${initials}</span>
-            </div>
-            <div class="flex-1 ${isCustomer ? 'flex flex-col items-end' : ''} min-w-0">
-                <div class="flex items-center gap-2 mb-1 ${isCustomer ? 'justify-end' : ''}">
-                    <span class="font-semibold text-sm text-gray-900">${escapeHtml(msg.sender_name || 'Unknown')}</span>
-                    ${channelBadge}
-                    <span class="text-xs text-gray-400" title="${formatDateTimeWIB(msg.created_at)}">${timeAgo}</span>
-                </div>
-                <div class="${isCustomer ? 'bg-red-50' : 'bg-gray-100'} rounded-xl px-4 py-3 max-w-full overflow-hidden">
-                    ${messageBody}
-                    ${ccLine}
-                    ${attachmentsHtml}
-                </div>
-            </div>
-        </div>`;
+    // Re-apply current status filter on the new scope
+    const base = getScopedTickets();
+    filteredTickets = currentFilter === 'all' ? base : base.filter(t => t.jarvies_status === currentFilter);
+    updateStats();
+    renderTickets();
 }
 
-function setupEmailFrames() {
-    document.querySelectorAll('iframe.email-frame').forEach(frame => {
-        if (frame.dataset.initialized) return;
-        frame.dataset.initialized = '1';
-        const html = decodeURIComponent(frame.dataset.srcdoc || '');
-        frame.srcdoc = html;
-        frame.addEventListener('load', () => {
-            try {
-                const h = frame.contentDocument?.documentElement?.scrollHeight;
-                if (h) frame.style.minHeight = Math.min(h + 20, 600) + 'px';
-            } catch {}
-        }, { once: true });
-    });
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(text || ''));
-    return div.innerHTML;
-}
-
-function closeTicketDetail() {
-    document.getElementById('ticketDetailModal').classList.add('hidden');
-    document.body.style.overflow = '';
-    currentTicketId = null;
-}
-
-// ==================== FILTER FUNCTIONS ====================
+// ==================== FILTERS ====================
 function filterTickets(status) {
     currentFilter = status;
-    
-    document.querySelectorAll('[id^="filter"]').forEach(el => {
-        el.classList.remove('border-red-600', 'border-2');
+
+    const cardMap = {
+        'all':               'filterAll',
+        'in process':        'filterInprocess',
+        'author action':     'filterAuthorAction',
+        'proposed solution': 'filterProposedSolution',
+        'sent in to SAP':    'filterSentInToSAP',
+        'closed':            'filterClosed',
+    };
+
+    Object.values(cardMap).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('border-2', 'border-red-600', 'shadow-md');
         el.classList.add('border', 'border-gray-100');
     });
 
-    const filterMap = {
-        'all': 'filterAll',
-        'in process': 'filterInprocess',
-        'author action': 'filterAuthorAction',
-        'proposed solution': 'filterProposedSolution',
-        'sent in to SAP': 'filterSentInToSAP',
-        'closed': 'filterClosed'
-    };
-
-    const filterId = filterMap[status];
-    if (filterId) {
-        const el = document.getElementById(filterId);
-        if (el) {
-            el.classList.remove('border', 'border-gray-100');
-            el.classList.add('border-2', 'border-red-600');
-        }
+    const activeId = cardMap[status];
+    if (activeId) {
+        const el = document.getElementById(activeId);
+        if (el) { el.classList.remove('border', 'border-gray-100'); el.classList.add('border-2', 'border-red-600', 'shadow-md'); }
     }
 
-    filteredTickets = status === 'all' 
-        ? allTickets 
-        : allTickets.filter(t => t.jarvies_status === status);
-    
+    const base = getScopedTickets();
+    filteredTickets = status === 'all' ? base : base.filter(t => t.jarvies_status === status);
     currentPage = 1;
     renderTickets();
 }
 
 function updateFilterOptions() {
-    const filterType = document.getElementById('filterTypeSelect').value;
-    const filterValue = document.getElementById('filterValueSelect');
-    
-    filterValue.disabled = !filterType;
-    filterValue.innerHTML = '<option value="">Select value</option>';
+    const filterType   = document.getElementById('filterTypeSelect').value;
+    const filterSelect = document.getElementById('filterValueSelect');
+    filterSelect.disabled = !filterType;
+    filterSelect.innerHTML = '<option value="">Select value</option>';
 
     const options = {
-        'jarvies_status': ['in process', 'author action', 'proposed solution', 'closed', 'sent in to SAP'],
-        'status': ['open', 'in_progress', 'hold', 'cancel', 'closed', 'reply'],
-        'type': ['AMS', 'MO', 'ATS', 'Project', 'Internal'],
-        'priority': ['Low', 'Medium', 'High']
+        'status':   ['in process', 'author action', 'proposed solution', 'sent in to SAP', 'closed'],
+        'type':     ['Incident', 'Service Request', 'Change Request', 'Consult'],
+        'priority': ['Very High', 'High', 'Medium', 'Low'],
     };
-
     if (filterType && options[filterType]) {
         options[filterType].forEach(opt => {
-            filterValue.innerHTML += `<option value="${opt}">${opt}</option>`;
+            filterSelect.innerHTML += `<option value="${opt}">${opt}</option>`;
         });
     }
 }
 
 function applyFilters() {
-    const filterType = document.getElementById('filterTypeSelect').value;
+    const filterType  = document.getElementById('filterTypeSelect').value;
     const filterValue = document.getElementById('filterValueSelect').value;
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    
-    filteredTickets = allTickets.filter(ticket => {
-        const matchesSearch = !searchTerm || 
-            String(ticket.ticket_id).includes(searchTerm) ||
+    const searchTerm  = document.getElementById('searchInput').value.toLowerCase();
+
+    filteredTickets = getScopedTickets().filter(ticket => {
+        const matchesSearch = !searchTerm ||
+            String(ticket.ticket_id || '').includes(searchTerm) ||
+            (ticket.ticket_number || '').toLowerCase().includes(searchTerm) ||
             (ticket.description || '').toLowerCase().includes(searchTerm) ||
             (ticket.customer?.customer_name || '').toLowerCase().includes(searchTerm) ||
             (ticket.customer?.company_name || '').toLowerCase().includes(searchTerm);
 
-        const matchesFilter = !filterType || !filterValue || ticket[filterType] === filterValue;
-        const matchesStatus = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
+        let matchesFilter = true;
+        if (filterType && filterValue) {
+            const fieldKey = filterType === 'priority' ? 'ticket_priority'
+                           : filterType === 'type'     ? 'ticket_type'
+                           : 'jarvies_status';
+            matchesFilter = ticket[fieldKey] === filterValue;
+        }
 
+        const matchesStatus = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
         return matchesSearch && matchesFilter && matchesStatus;
     });
 
@@ -881,37 +599,38 @@ function applyFilters() {
     renderTickets();
 }
 
-function searchTickets() {
-    applyFilters();
-}
-
 function resetFilters() {
     document.getElementById('searchInput').value = '';
     document.getElementById('filterTypeSelect').value = '';
-    document.getElementById('filterValueSelect').value = '';
+    document.getElementById('filterValueSelect').innerHTML = '<option value="">Select Type First</option>';
     document.getElementById('filterValueSelect').disabled = true;
     currentFilter = 'all';
     filterTickets('all');
 }
 
-// ==================== PAGINATION ====================
-function previousPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        renderTickets();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+// ==================== COLLAPSIBLE ====================
+const _sectionOpen = { statsSection: true, filtersSection: true };
+
+function toggleSection(sectionId, chevronId) {
+    const section = document.getElementById(sectionId);
+    const chevron = document.getElementById(chevronId);
+    if (!section) return;
+    _sectionOpen[sectionId] = !_sectionOpen[sectionId];
+    if (_sectionOpen[sectionId]) {
+        section.style.maxHeight = section.scrollHeight + 'px';
+        section.addEventListener('transitionend', function onEnd() {
+            section.style.maxHeight = 'none';
+            section.removeEventListener('transitionend', onEnd);
+        }, { once: true });
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+    } else {
+        section.style.maxHeight = section.scrollHeight + 'px';
+        requestAnimationFrame(() => requestAnimationFrame(() => { section.style.maxHeight = '0px'; }));
+        if (chevron) chevron.style.transform = 'rotate(-90deg)';
     }
 }
 
-function nextPage() {
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderTickets();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-// ==================== UTILITY FUNCTIONS ====================
+// ==================== UTILS ====================
 function showLoading(show) {
     document.getElementById('loadingState').classList.toggle('hidden', !show);
     document.getElementById('ticketsContainer').classList.toggle('hidden', show);
@@ -924,66 +643,24 @@ function showEmpty() {
     document.getElementById('emptyState').classList.remove('hidden');
 }
 
-function showNotification(message, type = 'info') {
-    const colors = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        info: 'bg-blue-500'
-    };
-    
-    const notification = document.createElement('div');
-    notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-xl shadow-xl z-[60] font-medium transition-opacity`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(text || ''));
+    return d.innerHTML;
 }
 
-// Format timestamp ke WIB — selalu konsisten di semua browser
-// Input: Date object atau ISO string dari API (e.g. "2026-04-15T08:23:46+07:00")
-function formatTimeAgo(date) {
+function relativeTime(date) {
     if (!(date instanceof Date)) date = new Date(date);
-    const now = new Date();
-    const diffMs   = now - date;
-    const diffMins  = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays  = Math.floor(diffMs / 86400000);
+    const tz  = 'Asia/Jakarta';
+    const now  = new Date();
+    const toDay = d => new Date(d.toLocaleDateString('en-CA', { timeZone: tz }));
+    const diffDays = Math.round((toDay(now) - toDay(date)) / 86400000);
 
-    if (diffMins < 1)  return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7)  return `${diffDays}d ago`;
-
-    // Lebih dari 7 hari — tampilkan tanggal lengkap dalam WIB
-    return date.toLocaleDateString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        day: 'numeric', month: 'short', year: 'numeric'
-    });
+    if (diffDays === 0) return date.toLocaleTimeString('id-ID', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7)   return date.toLocaleDateString('en-GB', { timeZone: tz, weekday: 'short' });
+    if (date.getFullYear() === now.getFullYear()) return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short' });
+    return date.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 }
-
-// Format tanggal + jam WIB — dipakai untuk tooltip atau detail
-function formatDateTimeWIB(isoString) {
-    if (!isoString) return '—';
-    const date = new Date(isoString);
-    return date.toLocaleString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: false
-    }).replace('.', ':') + ' WIB';
-}
-
-// Format tanggal saja (tanpa jam) dalam WIB
-function formatDateWIB(isoString) {
-    if (!isoString) return '—';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        day: 'numeric', month: 'short', year: 'numeric'
-    });
-}
-
 </script>
 @endpush

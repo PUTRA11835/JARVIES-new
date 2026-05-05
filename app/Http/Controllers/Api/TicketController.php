@@ -49,7 +49,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@index', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal memuat tiket.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to load tickets.'], 500);
         }
     }
 
@@ -68,7 +68,7 @@ class TicketController extends Controller
                 ->first();
 
             if (!$ticket) {
-                return response()->json(['success' => false, 'message' => 'Tiket tidak ditemukan.'], 404);
+                return response()->json(['success' => false, 'message' => 'Ticket not found.'], 404);
             }
 
             return response()->json(['success' => true, 'data' => $this->formatTicketDetail($ticket)]);
@@ -76,7 +76,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@show', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal memuat detail tiket.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to load ticket detail.'], 500);
         }
     }
 
@@ -102,7 +102,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validasi gagal.',
+                'message' => 'Validation failed.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -117,7 +117,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tiket berhasil dikirim dan sedang menunggu validasi admin.',
+                'message' => 'Ticket submitted successfully and is awaiting admin validation.',
                 'data'    => [
                     'id'              => $staging->id,
                     'staging_ref'     => 'STG-' . $staging->id,
@@ -132,7 +132,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@store', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal membuat tiket.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to create ticket.'], 500);
         }
     }
 
@@ -170,7 +170,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validasi gagal.',
+                'message' => 'Validation failed.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -182,7 +182,7 @@ class TicketController extends Controller
         if (!$senderEmail) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun Anda tidak memiliki email. Hubungi administrator.',
+                'message' => 'Your account does not have an email. Please contact the administrator.',
             ], 422);
         }
 
@@ -236,14 +236,14 @@ class TicketController extends Controller
         }
 
         // ── STEP 3: Kirim email via GraphRelayService ────────────────────────
-        $emailSubject = '[Menunggu Validasi] ' . $validated['description'];
+        $emailSubject = '[Pending Validation] ' . $validated['description'];
 
-        $emailBody = '<p style="color:#555;margin-bottom:12px"><em>[Tiket baru dari '
+        $emailBody = '<p style="color:#555;margin-bottom:12px"><em>[New ticket from '
             . htmlspecialchars($senderName ?? 'Customer')
             . ' via Jarvies]</em></p>'
             . '<div style="margin-bottom:16px"><strong>Description:</strong>'
             . '<div style="margin-top:8px;padding:12px;background:#f9f9f9;border:1px solid #e0e0e0;border-radius:4px">'
-            . ($emailBodyHtml ?: '<p><em>(Tidak ada pesan)</em></p>')
+            . ($emailBodyHtml ?: '<p><em>(No message)</em></p>')
             . '</div></div>';
 
         try {
@@ -262,14 +262,14 @@ class TicketController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengirim email: ' . $e->getMessage(),
+                'message' => 'Failed to send email: ' . $e->getMessage(),
             ], 500);
         }
 
         if (!$emailResult) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengirim email. Silakan coba lagi.',
+                'message' => 'Failed to send email. Please try again.',
             ], 500);
         }
 
@@ -336,7 +336,7 @@ class TicketController extends Controller
             'success'    => true,
             'staging'    => true,
             'email_sent' => true,
-            'message'    => 'Tiket berhasil dikirim dan sedang menunggu validasi admin.',
+            'message'    => 'Ticket submitted successfully and is awaiting admin validation.',
             'debug_eco'  => [
                 'url'    => config('ecosystem.url') . '/jarvies/staging-tickets',
                 'status' => $ecoStatus,
@@ -381,7 +381,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@staging', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal memuat staging tiket.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to load staging tickets.'], 500);
         }
     }
 
@@ -404,7 +404,7 @@ class TicketController extends Controller
                 ->first();
 
             if (!$ticket) {
-                return response()->json(['success' => false, 'message' => 'Tiket tidak ditemukan.'], 404);
+                return response()->json(['success' => false, 'message' => 'Ticket not found.'], 404);
             }
 
             $messages = TicketMessage::where('ticket_id', $id)
@@ -439,7 +439,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@messages', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal memuat pesan.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to load messages.'], 500);
         }
     }
 
@@ -461,7 +461,7 @@ class TicketController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pesan tidak boleh kosong.',
+                'message' => 'Message cannot be empty.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -472,7 +472,7 @@ class TicketController extends Controller
                 ->first();
 
             if (!$ticket) {
-                return response()->json(['success' => false, 'message' => 'Tiket tidak ditemukan.'], 404);
+                return response()->json(['success' => false, 'message' => 'Ticket not found.'], 404);
             }
 
             $msg = TicketMessage::create([
@@ -492,7 +492,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pesan berhasil dikirim.',
+                'message' => 'Message sent successfully.',
                 'data'    => [
                     'id'          => $msg->id,
                     'sender_type' => $msg->sender_type,
@@ -505,7 +505,7 @@ class TicketController extends Controller
         } catch (\Exception $e) {
             Log::error('Mobile API: TicketController@sendMessage', ['error' => $e->getMessage()]);
 
-            return response()->json(['success' => false, 'message' => 'Gagal mengirim pesan.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to send message.'], 500);
         }
     }
 

@@ -65,6 +65,10 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::post('/', [TicketController::class, 'store'])->name('store');
         Route::put('/{id}', [TicketController::class, 'update'])->name('update')->whereNumber('id');
         Route::delete('/{id}', [TicketController::class, 'destroy'])->name('destroy')->whereNumber('id');
+
+        // Customer actions
+        Route::post('/{id}/close',  [TicketController::class, 'closeTicket'])->name('close')->whereNumber('id');
+        Route::post('/{id}/cancel', [TicketController::class, 'cancelTicket'])->name('cancel')->whereNumber('id');
         
         // AJAX API Endpoints
         Route::get('/ajax/fetch', [TicketController::class, 'getTickets'])->name('ajax.fetch');

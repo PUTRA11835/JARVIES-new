@@ -38,7 +38,10 @@ return [
     | Ecosystem API Configuration
     |--------------------------------------------------------------------------
     |
-    | CRITICAL: Connection to Ecosystem backend (localhost:8000)
+    | CRITICAL: Connection to Ecosystem backend. Set ECOSYSTEM_API_URL in .env
+    | (e.g. https://ecosystem.example.com/api). No safe localhost fallback —
+    | empty default so production misconfig fails loudly instead of silently
+    | hitting a non-existent local server.
     |
     | Settings:
     | - url: API base URL
@@ -54,7 +57,7 @@ return [
     */
 
     'ecosystem' => [
-        'url' => env('ECOSYSTEM_API_URL', 'http://localhost:8000/api'),
+        'url' => env('ECOSYSTEM_API_URL', ''),
         'timeout' => env('ECOSYSTEM_API_TIMEOUT', 30),
         'retry' => [
             'times' => env('ECOSYSTEM_API_RETRY_TIMES', 3),

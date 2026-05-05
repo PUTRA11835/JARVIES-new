@@ -22,7 +22,7 @@ class ApiAuth
         if (!$token) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token tidak ditemukan. Silakan login terlebih dahulu.',
+                'message' => 'Token not found. Please login first.',
             ], 401);
         }
 
@@ -32,7 +32,7 @@ class ApiAuth
         if (count($parts) < 3 || $parts[2] !== 'customer') {
             return response()->json([
                 'success' => false,
-                'message' => 'Token tidak valid.',
+                'message' => 'Invalid token.',
             ], 401);
         }
 
@@ -41,7 +41,7 @@ class ApiAuth
         if ($issuedAt === 0 || time() > $issuedAt + (7 * 24 * 3600)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Sesi telah berakhir. Silakan refresh token.',
+                'message' => 'Session expired. Please refresh the token.',
                 'code'    => 'TOKEN_EXPIRED',
             ], 401);
         }
@@ -69,7 +69,7 @@ class ApiAuth
         if (!$customer) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akun tidak ditemukan atau tidak aktif.',
+                'message' => 'Account not found or inactive.',
             ], 401);
         }
 

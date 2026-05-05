@@ -261,20 +261,35 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
-            // Customer: hanya bisa lihat tiket mereka sendiri
+            // Customer: visibility depends on can_view_all_tickets privilege
             } elseif ($sessionUser['role']['id'] == 3) {
                 Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $authUser = DB::table('auth_users')
                     ->where('customer_id', $sessionUser['id'])
-                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
-                    ->get();
+                    ->where('email', $sessionUser['email'])
+                    ->first();
+
+                $canViewAll = $authUser ? (bool) $authUser->can_view_all_tickets : true;
+
+                $ticketQuery = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                    ->where('customer_id', $sessionUser['id']);
+
+                if (!$canViewAll) {
+                    $ticketQuery->where('submitted_by_email', $sessionUser['email']);
+                }
+
+                $tickets = $ticketQuery->orderByRaw('COALESCE(last_message_at, created_at) DESC')->get();
 
                 // Sertakan staging tickets (belum divalidasi) sebagai "Initial"
-                $stagingTickets = \App\Models\StagingTicket::where('customer_id', $sessionUser['id'])
-                    ->where('status', 'unvalidated')
-                    ->orderByDesc('created_at')
-                    ->get();
+                $stagingQuery = \App\Models\StagingTicket::where('customer_id', $sessionUser['id'])
+                    ->where('status', 'unvalidated');
+
+                if (!$canViewAll) {
+                    $stagingQuery->where('submitted_by_email', $sessionUser['email']);
+                }
+
+                $stagingTickets = $stagingQuery->orderByDesc('created_at')->get();
 
                 $stagingData = $stagingTickets->map(fn($s) => [
                     'ticket_id'                  => null,
@@ -302,6 +317,8 @@ class TicketController extends Controller
                     'confirmation'               => null,
                     'last_message_at'            => null,
                     'channel'                    => $s->channel ?? 'web',
+                    'submitted_by_email'         => $s->submitted_by_email,
+                    'submitted_by_name'          => $s->sender_name,
                     'created_at'                 => $s->created_at?->toIso8601String(),
                     'updated_at'                 => $s->updated_at?->toIso8601String(),
                 ]);
@@ -315,8 +332,21 @@ class TicketController extends Controller
 
             Log::info('Tickets fetched', ['count' => $tickets->count()]);
 
+            // Bulk-load ticket IDs that have unread agent messages for the customer
+            $unreadTicketIds = [];
+            if ($tickets->isNotEmpty()) {
+                $unreadTicketIds = TicketMessage::whereIn('ticket_id', $tickets->pluck('ticket_id'))
+                    ->where('sender_type', 'employee')
+                    ->where('is_read_by_customer', false)
+                    ->where('is_internal_note', false)
+                    ->pluck('ticket_id')
+                    ->unique()
+                    ->flip()
+                    ->all();
+            }
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) {
+            $ticketsData = $tickets->map(function($ticket) use ($unreadTicketIds) {
                 // ✅ Hitung pending confirmations untuk admin
                 $pendingCount = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
@@ -366,10 +396,13 @@ class TicketController extends Controller
                         'employee_id' => $pendingConfirmation->employee_id,
                         'status' => $pendingConfirmation->status,
                     ] : null,
-                    'last_message_at' => $ticket->last_message_at?->toIso8601String(),
-                    'channel' => $ticket->channel,
-                    'created_at' => $ticket->created_at?->toIso8601String(),
-                    'updated_at' => $ticket->updated_at?->toIso8601String(),
+                    'last_message_at'    => $ticket->last_message_at?->toIso8601String(),
+                    'channel'            => $ticket->channel,
+                    'submitted_by_email' => $ticket->submitted_by_email,
+                    'submitted_by_name'  => $ticket->submitted_by_name,
+                    'has_unread'         => isset($unreadTicketIds[$ticket->ticket_id]),
+                    'created_at'         => $ticket->created_at?->toIso8601String(),
+                    'updated_at'         => $ticket->updated_at?->toIso8601String(),
                 ];
             });
 
@@ -430,7 +463,7 @@ class TicketController extends Controller
             if (!$senderEmail) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akun Anda tidak memiliki email. Hubungi administrator.',
+                    'message' => 'Your account does not have an email. Please contact the administrator.',
                 ], 422);
             }
 
@@ -490,14 +523,14 @@ class TicketController extends Controller
             }
 
             // ── STEP 3: Kirim email via GraphRelayService (Raditya → customer) ───
-            // Subject email = "[Menunggu Validasi] {description}"
+            // Subject email = "[Pending Validation] {description}"
             // description di API harus SAMA dengan subject email (tanpa prefix).
             // EcoSystem cocokkan staging ke email via LOWER(description) = LOWER(clean_subject).
-            $emailSubject = '[No Reply] [Menunggu Validasi] ' . $validated['description'];
+            $emailSubject = '[No Reply] [Pending Validation] ' . $validated['description'];
 
             $emailBody = $this->buildTicketEmailBody(
                 $senderName,
-                $emailBodyHtml ?: '<p><em>(Tidak ada pesan)</em></p>',
+                $emailBodyHtml ?: '<p><em>(No message)</em></p>',
                 $validated
             );
 
@@ -518,7 +551,7 @@ class TicketController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Gagal mengirim tiket: ' . $e->getMessage(),
+                    'message' => 'Failed to submit ticket: ' . $e->getMessage(),
                 ], 500);
             }
 
@@ -529,7 +562,7 @@ class TicketController extends Controller
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Gagal mengirim email. Silakan coba lagi.',
+                    'message' => 'Failed to send email. Please try again.',
                 ], 500);
             }
 
@@ -641,7 +674,7 @@ class TicketController extends Controller
                 'success'    => true,
                 'staging'    => true,
                 'email_sent' => true,
-                'message'    => 'Tiket Anda telah dikirim dan sedang menunggu validasi admin.',
+                'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
             ], 201);
         }
 
@@ -992,7 +1025,7 @@ class TicketController extends Controller
             ->first();
 
         if (!$ticket) {
-            return redirect()->route('tickets.index')->with('error', 'Ticket tidak ditemukan.');
+            return redirect()->route('tickets.index')->with('error', 'Ticket not found.');
         }
 
         // Redirect ke halaman utama tickets, JS akan auto-buka modal via query param
@@ -1617,7 +1650,7 @@ class TicketController extends Controller
         $from = htmlspecialchars($senderName ?? 'Customer');
 
         return '<p style="color:#555;margin-bottom:12px">
-                    <em>[Tiket baru dari ' . $from . ' via Jarvies]</em>
+                    <em>[New ticket from ' . $from . ' via Jarvies]</em>
                 </p>'
             . $metaTable
             . $bodySection;
@@ -1734,7 +1767,7 @@ class TicketController extends Controller
             }
 
             if (!$hasText && empty($inlineImages) && empty($fileAttachments)) {
-                return response()->json(['success' => false, 'message' => 'Pesan tidak boleh kosong.'], 422);
+                return response()->json(['success' => false, 'message' => 'Message cannot be empty.'], 422);
             }
 
             $ticket = Ticket::findOrFail($id);
@@ -3620,6 +3653,92 @@ class TicketController extends Controller
         }
 
         return $response->json();
+    }
+
+    /**
+     * Customer closes a ticket (issue resolved).
+     * POST /tickets/{id}/close
+     */
+    public function closeTicket($id)
+    {
+        $user = session('user');
+        if (!$user || $user['role']['id'] !== 3) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $ticket = Ticket::where('ticket_id', $id)
+            ->where('customer_id', $user['id'])
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+        }
+
+        if (in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
+            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->jarvies_status], 422);
+        }
+
+        $ticket->update([
+            'jarvies_status' => 'closed',
+            'status'         => 'closed',
+        ]);
+
+        // Add system message
+        DB::table('ticket_message')->insert([
+            'ticket_id'    => $ticket->ticket_id,
+            'sender_type'  => 'system',
+            'message'      => 'Ticket closed by customer.',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ticket has been closed.',
+        ]);
+    }
+
+    /**
+     * Customer cancels a ticket.
+     * POST /tickets/{id}/cancel
+     */
+    public function cancelTicket($id)
+    {
+        $user = session('user');
+        if (!$user || $user['role']['id'] !== 3) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $ticket = Ticket::where('ticket_id', $id)
+            ->where('customer_id', $user['id'])
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
+        }
+
+        if (in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
+            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->jarvies_status], 422);
+        }
+
+        $ticket->update([
+            'jarvies_status' => 'cancel',
+            'status'         => 'cancelled',
+        ]);
+
+        // Add system message
+        DB::table('ticket_message')->insert([
+            'ticket_id'    => $ticket->ticket_id,
+            'sender_type'  => 'system',
+            'message'      => 'Ticket cancelled by customer.',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ticket has been cancelled.',
+        ]);
     }
 
     /**

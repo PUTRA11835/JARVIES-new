@@ -95,9 +95,9 @@ class StagingTicket extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'unvalidated' => 'Menunggu Validasi',
-            'approved'    => 'Disetujui',
-            'rejected'    => 'Ditolak',
+            'unvalidated' => 'Pending Validation',
+            'approved'    => 'Approved',
+            'rejected'    => 'Rejected',
             default       => 'Unknown',
         };
     }

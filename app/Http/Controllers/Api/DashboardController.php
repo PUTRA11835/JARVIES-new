@@ -80,7 +80,7 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal memuat dashboard.',
+                'message' => 'Failed to load dashboard.',
             ], 500);
         }
     }

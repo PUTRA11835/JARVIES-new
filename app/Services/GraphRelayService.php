@@ -408,7 +408,7 @@ class GraphRelayService
             . ': ' . mb_substr($ticket->description ?? '', 0, 80);
 
         // Bungkus pesan dengan atribusi pengirim (format sama dengan EcoSystem relay)
-        $wrappedBody = '<p><em>[Pesan dari ' . htmlspecialchars($senderName) . ' via Jarvies]</em></p>'
+        $wrappedBody = '<p><em>[Message from ' . htmlspecialchars($senderName) . ' via Jarvies]</em></p>'
             . $htmlBody;
 
         // ─── Step 1: Buat draft ───────────────────────────────────────────────

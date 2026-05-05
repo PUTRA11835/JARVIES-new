@@ -339,26 +339,41 @@ class AuthController extends Controller
                 $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
 
                 $userData = [
-                    'id'            => $customer->customer_id,
-                    'type'          => 'customer',
-                    'customer_code' => $customer->customer_code,
-                    'contact_id'    => $contact->contact_id ?? null,
-                    'name'          => $contact->full_name ?? $authUser->username ?? null,
-                    'position'      => $contact->position ?? null,
-                    'department'    => $contact->department ?? null,
-                    'phone'         => $contact->cell_phone ?? null,
-                    'company_name'  => $companyName,
-                    'email'         => $authUser->email,
-                    'category'      => $customer->customer_category,
-                    'group'         => $customer->customer_group,
-                    'role'          => [
+                    'id'                   => $customer->customer_id,
+                    'type'                 => 'customer',
+                    'customer_code'        => $customer->customer_code,
+                    'contact_id'           => $contact->contact_id ?? null,
+                    'name'                 => $contact->full_name ?? $authUser->username ?? null,
+                    'position'             => $contact->position ?? null,
+                    'department'           => $contact->department ?? null,
+                    'phone'                => $contact->cell_phone ?? null,
+                    'company_name'         => $companyName,
+                    'email'                => $authUser->email,
+                    'category'             => $customer->customer_category,
+                    'group'                => $customer->customer_group,
+                    'can_view_all_tickets' => (bool) ($authUser->can_view_all_tickets ?? true),
+                    'role'                 => [
                         'id'   => 3,
                         'name' => 'Customer',
                     ],
                 ];
 
+                // Load user preferences from DB (persisted across logins/devices)
+                $dbPrefs = null;
+                if (!empty($authUser->preferences)) {
+                    $decoded = is_string($authUser->preferences)
+                        ? json_decode($authUser->preferences, true)
+                        : (array) $authUser->preferences;
+                    if (is_array($decoded) && !empty($decoded)) {
+                        $dbPrefs = $decoded;
+                    }
+                }
+
                 $request->session()->put('auth_token', $token);
                 $request->session()->put('user', $userData);
+                if ($dbPrefs) {
+                    $request->session()->put('user_preferences', $dbPrefs);
+                }
                 $request->session()->regenerate();
                 $request->session()->save();
 

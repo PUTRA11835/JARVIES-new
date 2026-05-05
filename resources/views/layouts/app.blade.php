@@ -475,8 +475,17 @@
         notifications_enabled: true,
     };
 
+    // Preferences from server DB (loaded on login, survive logout/re-login across devices)
+    var _SERVER_PREFS = @json(session('user_preferences', []));
+
     function _loadPrefs() {
         try {
+            // Server prefs are authoritative (saved to DB). Sync them to localStorage so
+            // the UI is consistent even when JS reads localStorage before the session is available.
+            if (_SERVER_PREFS && Object.keys(_SERVER_PREFS).length > 0) {
+                try { localStorage.setItem('jarvies_preferences', JSON.stringify(_SERVER_PREFS)); } catch(e) {}
+                return Object.assign({}, _DEFAULT_PREFS, _SERVER_PREFS);
+            }
             var saved = localStorage.getItem('jarvies_preferences');
             return saved ? Object.assign({}, _DEFAULT_PREFS, JSON.parse(saved)) : Object.assign({}, _DEFAULT_PREFS);
         } catch(e) { return Object.assign({}, _DEFAULT_PREFS); }

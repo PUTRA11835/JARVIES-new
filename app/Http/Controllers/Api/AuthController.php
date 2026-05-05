@@ -31,7 +31,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validasi gagal.',
+                'message' => 'Validation failed.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -52,7 +52,7 @@ class AuthController extends Controller
             if (!$authUser || !Hash::check($request->password, $authUser->password)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Email atau password salah.',
+                    'message' => 'Invalid email or password.',
                 ], 401);
             }
 
@@ -60,7 +60,7 @@ class AuthController extends Controller
             if (is_null($authUser->customer_id)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akun ini tidak memiliki akses ke aplikasi mobile.',
+                    'message' => 'This account does not have access to the mobile app.',
                 ], 403);
             }
 
@@ -76,7 +76,7 @@ class AuthController extends Controller
                 return response()->json([
                     'success'                 => false,
                     'require_password_change' => true,
-                    'message'                 => 'Silakan cek email Anda untuk mengatur password terlebih dahulu.',
+                    'message'                 => 'Please check your email to set your password first.',
                     'email'                   => $maskedEmail,
                 ], 403);
             }
@@ -102,7 +102,7 @@ class AuthController extends Controller
             if (!$customer) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akun Anda tidak aktif.',
+                    'message' => 'Your account is inactive.',
                 ], 403);
             }
 
@@ -130,7 +130,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Login berhasil.',
+                'message' => 'Login successful.',
                 'data'    => [
                     'access_token'  => $accessToken,
                     'refresh_token' => $refreshToken,
@@ -144,7 +144,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem.',
+                'message' => 'A system error occurred.',
             ], 500);
         }
     }
@@ -179,7 +179,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Logout berhasil.',
+            'message' => 'Logout successful.',
         ]);
     }
 
@@ -199,7 +199,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Refresh token diperlukan.',
+                'message' => 'Refresh token is required.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -213,7 +213,7 @@ class AuthController extends Controller
             if (!$tokenRecord) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Refresh token tidak valid atau sudah kedaluwarsa. Silakan login ulang.',
+                    'message' => 'Refresh token is invalid or has expired. Please log in again.',
                     'code'    => 'REFRESH_TOKEN_INVALID',
                 ], 401);
             }
@@ -230,7 +230,7 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akun tidak aktif.',
+                    'message' => 'Account is inactive.',
                 ], 401);
             }
 
@@ -254,7 +254,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem.',
+                'message' => 'A system error occurred.',
             ], 500);
         }
     }

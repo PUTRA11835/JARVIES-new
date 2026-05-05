@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SettingsController extends Controller
@@ -68,8 +69,17 @@ class SettingsController extends Controller
             }
 
             $preferences = $request->all();
-            
-            // Save to session (in production, save to database)
+
+            // Persist to DB (auth_users.preferences) — survives logout/re-login
+            DB::table('auth_users')
+                ->where('customer_id', $user['id'])
+                ->where('email', $user['email'])
+                ->update([
+                    'preferences' => json_encode($preferences),
+                    'updated_at'  => now(),
+                ]);
+
+            // Also keep in session for current request
             session(['user_preferences' => $preferences]);
 
             Log::info('User preferences updated', [
@@ -122,6 +132,15 @@ class SettingsController extends Controller
                 'email_notifications' => true,
                 'push_notifications' => false,
             ];
+
+            // Clear from DB
+            DB::table('auth_users')
+                ->where('customer_id', $user['id'])
+                ->where('email', $user['email'])
+                ->update([
+                    'preferences' => null,
+                    'updated_at'  => now(),
+                ]);
 
             session(['user_preferences' => $defaultPreferences]);
 

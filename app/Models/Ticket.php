@@ -33,6 +33,8 @@ class Ticket extends Model
         'cc_emails',
         'last_message_at',
         'last_agent_reply_at',
+        'submitted_by_email',
+        'submitted_by_name',
     ];
 
     protected $casts = [
