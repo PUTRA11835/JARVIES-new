@@ -106,6 +106,24 @@
 .msg-channel-email { background: #dbeafe; color: #1d4ed8; }
 .msg-channel-web   { background: #f0fdf4; color: #15803d; }
 
+/* Status delivery indicator (WhatsApp-style) — hanya untuk pesan customer */
+.msg-status-row {
+    display: flex; justify-content: flex-end;
+    margin-top: 6px; padding-top: 4px;
+    border-top: 1px solid rgba(0,0,0,0.04);
+}
+.msg-status {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; color: #9ca3af; user-select: none; cursor: default;
+    line-height: 1;
+}
+.msg-status.read { color: #2563eb; font-weight: 600; }
+.msg-status .check-pair {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+}
+.msg-status .check-pair svg { width: 12px; height: 12px; }
+.msg-status .check-pair svg + svg { margin-left: -7px; }
+
 /* Email HTML body — scoped so styles don't leak outside bubble */
 .email-html-body               { word-break: break-word; }
 .email-html-body p             { margin-bottom: 0.3rem; }
@@ -141,13 +159,16 @@
 .sb-prio-high      { background:#fee2e2; color:#b91c1c; }
 .sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
 .sb-prio-low       { background:#dcfce7; color:#15803d; }
-.sb-status-open         { background:#dbeafe; color:#1d4ed8; }
-.sb-status-in_progress  { background:#ede9fe; color:#6d28d9; }
-.sb-status-closed       { background:#dcfce7; color:#15803d; }
-.sb-status-wait_to_close{ background:#ffedd5; color:#c2410c; }
-.sb-status-hold         { background:#f3f4f6; color:#4b5563; }
-.sb-status-reply        { background:#fef9c3; color:#a16207; }
-.sb-status-cancel       { background:#fee2e2; color:#b91c1c; }
+/* Jarvies status badge classes */
+.sb-jstat-in-process    { background:#ede9fe; color:#6d28d9; }
+.sb-jstat-author-action { background:#fef9c3; color:#a16207; }
+.sb-jstat-proposed      { background:#ccfbf1; color:#0f766e; }
+.sb-jstat-closed        { background:#dcfce7; color:#15803d; }
+.sb-jstat-sent-sap      { background:#e0e7ff; color:#3730a3; }
+.sb-jstat-sent-support  { background:#e0f2fe; color:#0369a1; }
+.sb-jstat-cancel        { background:#fee2e2; color:#b91c1c; }
+.sb-jstat-initial       { background:#f3f4f6; color:#4b5563; }
+.sb-jstat-default       { background:#f3f4f6; color:#4b5563; }
 </style>
 @endpush
 
@@ -446,6 +467,36 @@
 </div>
 
 
+{{-- ==================== CONFIRMATION MODAL ==================== --}}
+<div id="confirmModal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden" aria-modal="true" role="dialog">
+    <div id="confirmModalBackdrop" class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeConfirmModal()"></div>
+    <div id="confirmModalCard"
+         class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm transform transition-all duration-200 scale-95 opacity-0">
+
+        {{-- Top Icon --}}
+        <div class="flex flex-col items-center pt-8 pb-2 px-6">
+            <div id="confirmModalIconWrap" class="w-16 h-16 rounded-full flex items-center justify-center mb-4"></div>
+            <h3 id="confirmModalTitle" class="text-base font-bold text-gray-900 text-center mb-1"></h3>
+            <p id="confirmModalMessage" class="text-sm text-gray-500 text-center leading-relaxed"></p>
+        </div>
+
+        {{-- Info Callout --}}
+        <div id="confirmModalInfo" class="hidden mx-6 mt-3 mb-1 p-3 rounded-xl text-xs leading-relaxed"></div>
+
+        {{-- Buttons --}}
+        <div class="flex gap-3 p-6">
+            <button onclick="closeConfirmModal()"
+                    class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 active:bg-gray-100 transition-all">
+                Keep Ticket
+            </button>
+            <button id="confirmModalBtn"
+                    class="flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all">
+                Confirm
+            </button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const ticketId   = {{ $ticket->ticket_id }};
@@ -714,16 +765,58 @@ function createFallbackMessage() {
         </div>`;
 }
 
+// ==================== STATUS INDICATOR ====================
+const ICON_CHECK_SINGLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+const ICON_CHECK_DOUBLE = `<span class="check-pair"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg></span>`;
+
+/**
+ * Status indikator delivery untuk pesan customer → agent.
+ * - Sent (✓ abu-abu)            : pesan tersimpan ke DB
+ * - Sent via email (✓✓ abu-abu) : email dikirim ke helpdesk inbox
+ * - Read (✓✓ biru)              : agent sudah baca pesan
+ *
+ * Hanya ditampilkan untuk pesan customer sendiri (kanan).
+ */
+function statusIndicator(msg) {
+    if (msg.sender_type !== 'customer') return '';
+
+    let readAtTip = '';
+    if (msg.read_at) {
+        try {
+            const t = new Date(msg.read_at).toLocaleString('en-GB', {
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }) + ' (WIB)';
+            readAtTip = `Read at ${t}`;
+        } catch (e) { readAtTip = 'Read by agent'; }
+    } else {
+        readAtTip = 'Read by agent';
+    }
+
+    if (msg.is_read_by_agent) {
+        return `<div class="msg-status read" title="${readAtTip}">${ICON_CHECK_DOUBLE}<span>Read</span></div>`;
+    }
+
+    if (msg.channel === 'email' && msg.email_message_id) {
+        return `<div class="msg-status" title="Delivered to helpdesk email">${ICON_CHECK_DOUBLE}<span>Sent via email</span></div>`;
+    }
+
+    return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
+}
+
 // ==================== MESSAGE RENDERING ====================
 function createMessageBubble(msg) {
     const isEmployee = msg.sender_type === 'employee';
     const hasIdentity = !!(msg.sender_name || msg.sender_email);
-    const isSystem    = msg.sender_type === 'system' && !hasIdentity;
+    // Tangkap pesan sistem: sender_type='system' (data baru) ATAU pesan lama
+    // yang tersimpan sebagai 'customer' tapi isinya pola log sistem.
+    const isSystem = msg.sender_type === 'system'
+                  || /^Status change to "/i.test(msg.message || '');
 
     // System message → centered pill
     if (isSystem) {
         return `<div class="flex justify-center my-2">
-            <span class="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">${escHtml(msg.message)}</span>
+            <span class="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full">${escHtml(msg.message)}</span>
         </div>`;
     }
 
@@ -790,7 +883,9 @@ function createMessageBubble(msg) {
     }
 
     // Customer (self) or external → RIGHT side
-    const avatarBg = msg.sender_type === 'customer' ? 'bg-blue-600' : 'bg-blue-500';
+    const avatarBg    = msg.sender_type === 'customer' ? 'bg-blue-600' : 'bg-blue-500';
+    const statusHtml  = statusIndicator(msg);
+    const statusSection = statusHtml ? `<div class="msg-status-row">${statusHtml}</div>` : '';
     return `
         <div class="flex gap-3 flex-row-reverse">
             <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
@@ -806,6 +901,7 @@ function createMessageBubble(msg) {
                 <div class="message-bubble bubble-customer p-3 inline-block text-left">
                     ${msgContent}
                     ${attachHtml}
+                    ${statusSection}
                 </div>
             </div>
         </div>`;
@@ -999,13 +1095,24 @@ function renderSidebarTickets(tickets) {
     };
     const prioLabelMap = { 'Very High': 'V.High', 'High': 'High', 'Medium': 'Med', 'Low': 'Low' };
     const statusClsMap = {
-        'open': 'sb-status-open', 'in_progress': 'sb-status-in_progress',
-        'closed': 'sb-status-closed', 'wait_to_close': 'sb-status-wait_to_close',
-        'hold': 'sb-status-hold', 'reply': 'sb-status-reply', 'cancel': 'sb-status-cancel',
+        'in process':         'sb-jstat-in-process',
+        'author action':      'sb-jstat-author-action',
+        'proposed solution':  'sb-jstat-proposed',
+        'closed':             'sb-jstat-closed',
+        'sent in to sap':     'sb-jstat-sent-sap',
+        'sent it to support': 'sb-jstat-sent-support',
+        'cancel':             'sb-jstat-cancel',
+        'initial':            'sb-jstat-initial',
     };
     const statusLabelMap = {
-        'open': 'Open', 'in_progress': 'In Progress', 'closed': 'Closed',
-        'wait_to_close': 'Waiting', 'hold': 'Hold', 'reply': 'Replied', 'cancel': 'Cancelled',
+        'in process':         'In Process',
+        'author action':      'Author Action',
+        'proposed solution':  'Proposed',
+        'closed':             'Closed',
+        'sent in to sap':     'SAP',
+        'sent it to support': 'Support',
+        'cancel':             'Cancelled',
+        'initial':            'Pending',
     };
 
     list.innerHTML = tickets.map(t => {
@@ -1019,9 +1126,9 @@ function renderSidebarTickets(tickets) {
         const prioCls   = prioClsMap[prio] || 'sb-prio-medium';
         const prioKey   = prioLabelMap[prio] || prio;
 
-        const stat      = t.status || 'open';
-        const sCls      = statusClsMap[stat] || 'sb-status-open';
-        const sLabel    = statusLabelMap[stat] || stat;
+        const stat      = (t.jarvies_status || t.status || 'in process').toLowerCase();
+        const sCls      = statusClsMap[stat] || 'sb-jstat-default';
+        const sLabel    = statusLabelMap[stat] || t.jarvies_status || stat;
 
         const unreadDot = (!isActive && t.has_unread)
             ? `<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 self-center"></span>`
@@ -1190,10 +1297,62 @@ function toggleReplyBox() {
     if (iconUp)   iconUp.classList.toggle('hidden', !isExpanded);
 }
 
-// ==================== CUSTOMER ACTIONS ====================
-async function customerCloseTicket() {
-    if (!confirm('Are you sure you want to close this ticket? This indicates your issue has been resolved.')) return;
+// ==================== CONFIRMATION MODAL ====================
+function showConfirmModal({ title, message, info, infoCls, iconHtml, iconBg, btnCls, btnLabel, onConfirm }) {
+    document.getElementById('confirmModalTitle').textContent   = title;
+    document.getElementById('confirmModalMessage').textContent = message;
 
+    const iconWrap = document.getElementById('confirmModalIconWrap');
+    iconWrap.className = `w-16 h-16 rounded-full flex items-center justify-center mb-4 ${iconBg}`;
+    iconWrap.innerHTML = iconHtml;
+
+    const infoEl = document.getElementById('confirmModalInfo');
+    if (info) {
+        infoEl.innerHTML = info;
+        infoEl.className = `mx-6 mt-3 mb-1 p-3 rounded-xl text-xs leading-relaxed ${infoCls || ''}`;
+    } else {
+        infoEl.className = 'hidden';
+    }
+
+    const btnEl = document.getElementById('confirmModalBtn');
+    btnEl.className  = `flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all ${btnCls}`;
+    btnEl.textContent = btnLabel;
+    btnEl.onclick     = () => { closeConfirmModal(); onConfirm(); };
+
+    const modal = document.getElementById('confirmModal');
+    const card  = document.getElementById('confirmModalCard');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+    }));
+}
+
+function closeConfirmModal() {
+    const modal = document.getElementById('confirmModal');
+    const card  = document.getElementById('confirmModalCard');
+    card.classList.remove('scale-100', 'opacity-100');
+    card.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 200);
+}
+
+// ==================== CUSTOMER ACTIONS ====================
+function customerCloseTicket() {
+    showConfirmModal({
+        title:    'Close This Ticket?',
+        message:  'Closing this ticket indicates your issue has been resolved. A confirmation email will be sent to you.',
+        info:     '<div class="flex items-start gap-2"><svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Once closed, this ticket will be marked as resolved. Open a new ticket if the issue recurs.</span></div>',
+        infoCls:  'bg-green-50 text-green-700',
+        iconHtml: '<svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+        iconBg:   'bg-green-100',
+        btnCls:   'bg-green-600 hover:bg-green-700 active:bg-green-800',
+        btnLabel: 'Yes, Close Ticket',
+        onConfirm: doCloseTicket,
+    });
+}
+
+async function doCloseTicket() {
     try {
         const res = await fetch(`/tickets/${ticketId}/close`, {
             method: 'POST',
@@ -1214,9 +1373,21 @@ async function customerCloseTicket() {
     }
 }
 
-async function customerCancelTicket() {
-    if (!confirm('Are you sure you want to cancel this ticket? This action cannot be undone.')) return;
+function customerCancelTicket() {
+    showConfirmModal({
+        title:    'Cancel This Ticket?',
+        message:  'This action cannot be undone. The ticket will be permanently cancelled.',
+        info:     '<div class="flex items-start gap-2"><svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg><span>A cancellation email will be sent to you. Please open a new ticket if you still need assistance.</span></div>',
+        infoCls:  'bg-red-50 text-red-700',
+        iconHtml: '<svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+        iconBg:   'bg-red-100',
+        btnCls:   'bg-red-600 hover:bg-red-700 active:bg-red-800',
+        btnLabel: 'Yes, Cancel Ticket',
+        onConfirm: doCancelTicket,
+    });
+}
 
+async function doCancelTicket() {
     try {
         const res = await fetch(`/tickets/${ticketId}/cancel`, {
             method: 'POST',

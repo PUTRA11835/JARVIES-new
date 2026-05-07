@@ -534,6 +534,10 @@ class TicketController extends Controller
                 $validated
             );
 
+            $emailResult    = null;
+            $internetMsgId  = null;
+            $conversationId = null;
+
             try {
                 $graphService = new GraphRelayService();
                 $emailResult  = $graphService->sendStandaloneEmail(
@@ -545,29 +549,20 @@ class TicketController extends Controller
                     $emailFileAttachments
                 );
             } catch (\Exception $e) {
-                Log::error('TicketController@store: Graph email exception', [
+                Log::warning('TicketController@store: Graph email exception — falling back to web-channel staging', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
                 ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to submit ticket: ' . $e->getMessage(),
-                ], 500);
             }
 
             if (!$emailResult) {
-                Log::error('TicketController@store: sendStandaloneEmail returned null', [
+                Log::warning('TicketController@store: email failed — creating web-channel staging ticket', [
                     'customer_id' => $user['id'],
                     'to'          => $senderEmail,
                 ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to send email. Please try again.',
-                ], 500);
+            } else {
+                $internetMsgId  = $emailResult['internet_message_id'];
+                $conversationId = $emailResult['conversation_id'];
             }
-
-            $internetMsgId  = $emailResult['internet_message_id'];
-            $conversationId = $emailResult['conversation_id'];
 
             Log::info('TicketController@store: email sent', [
                 'customer_id'         => $user['id'],
@@ -579,8 +574,6 @@ class TicketController extends Controller
             ]);
 
             // ── STEP 4a: Simpan staging ke DB JARVIES sendiri ────────────────────
-            // Ini memastikan staging selalu muncul di ticket list customer,
-            // bahkan jika EcoSystem API tidak tersedia.
             // Reconnect MySQL — koneksi bisa timeout selama email dikirim via Graph API.
             DB::reconnect();
             $service = new StagingTicketService();
@@ -589,6 +582,8 @@ class TicketController extends Controller
                     'email_thread_id'  => $conversationId,
                     'email_message_id' => $internetMsgId,
                     'cc_emails'        => $ccEmails ?: null,
+                    // If email failed, channel falls back to web
+                    'channel'          => $emailResult ? 'email' : 'web',
                 ]),
                 $user['id'],
                 $senderEmail,
@@ -609,8 +604,17 @@ class TicketController extends Controller
             }
 
             // ── STEP 4b: POST ke EcoSystem API /jarvies/staging-tickets ──────────
-            // Wajib multipart/form-data — jangan set Content-Type manual.
-            // EcoSystem butuh internet_message_id untuk linkStagingToEmail().
+            // Hanya jika email berhasil dikirim — EcoSystem butuh internet_message_id
+            // untuk linkStagingToEmail(). Jika email gagal, staging sudah tersimpan
+            // di JARVIES DB (step 4a) dan admin bisa approve langsung dari sana.
+            if (!$emailResult) {
+                return response()->json([
+                    'success'    => true,
+                    'staging'    => true,
+                    'email_sent' => false,
+                    'message'    => 'Your ticket has been submitted and is awaiting admin validation.',
+                ], 201);
+            }
 
             // Build multipart fields
             $multipart = [
@@ -1582,9 +1586,12 @@ class TicketController extends Controller
                                             ->filter()
                                             ->values()
                                             ->all(),
-                        'channel'      => $msg->channel,
-                        'attachments'  => $deduped,
-                        'created_at'   => $msg->created_at?->toIso8601String(),
+                        'channel'           => $msg->channel,
+                        'attachments'       => $deduped,
+                        'created_at'        => $msg->created_at?->toIso8601String(),
+                        'is_read_by_agent'  => (bool) $msg->is_read_by_agent,
+                        'read_at'           => $msg->read_at?->toIso8601String(),
+                        'email_message_id'  => $msg->email_message_id,
                     ];
                 });
 
@@ -3683,14 +3690,44 @@ class TicketController extends Controller
             'status'         => 'closed',
         ]);
 
-        // Add system message
+        $userName  = $user['name'] ?? $user['company_name'] ?? $user['email'];
+        $timestamp = now()->format('d/m/Y H:i');
+        $logMessage = "Status change to \"Closed\" by {$userName} at {$timestamp}";
+
         DB::table('ticket_message')->insert([
-            'ticket_id'    => $ticket->ticket_id,
-            'sender_type'  => 'system',
-            'message'      => 'Ticket closed by customer.',
-            'created_at'   => now(),
-            'updated_at'   => now(),
+            'ticket_id'   => $ticket->ticket_id,
+            'sender_type' => 'system',
+            'message'     => $logMessage,
+            'created_at'  => now(),
+            'updated_at'  => now(),
         ]);
+
+        // Send email notification to customer
+        try {
+            $customerEmail = $user['email'] ?? null;
+            if ($customerEmail) {
+                $ticketNum = $ticket->ticket_number ?? $ticket->ticket_id;
+                $htmlBody  = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>Closed</strong>.</p>'
+                           . '<p>' . htmlspecialchars($logMessage) . '</p>';
+
+                $graphService = new GraphRelayService();
+
+                if ($ticket->email_thread_id) {
+                    $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->where('channel', 'email')
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+
+                    $graphService->sendRelayEmail($ticket, $customerEmail, $userName, $htmlBody, $inReplyTo);
+                } else {
+                    $subject = 'Ticket #' . $ticketNum . ' - Closed';
+                    $graphService->sendStandaloneEmail($customerEmail, $subject, $htmlBody, [], [], [], $ticket->ticket_id);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('closeTicket: email notification failed', ['error' => $e->getMessage(), 'ticket_id' => $id]);
+        }
 
         return response()->json([
             'success' => true,
@@ -3723,17 +3760,47 @@ class TicketController extends Controller
 
         $ticket->update([
             'jarvies_status' => 'cancel',
-            'status'         => 'cancelled',
+            'status'         => 'cancel',
         ]);
 
-        // Add system message
+        $userName  = $user['name'] ?? $user['company_name'] ?? $user['email'];
+        $timestamp = now()->format('d/m/Y H:i');
+        $logMessage = "Status change to \"Cancelled\" by {$userName} at {$timestamp}";
+
         DB::table('ticket_message')->insert([
-            'ticket_id'    => $ticket->ticket_id,
-            'sender_type'  => 'system',
-            'message'      => 'Ticket cancelled by customer.',
-            'created_at'   => now(),
-            'updated_at'   => now(),
+            'ticket_id'   => $ticket->ticket_id,
+            'sender_type' => 'system',
+            'message'     => $logMessage,
+            'created_at'  => now(),
+            'updated_at'  => now(),
         ]);
+
+        // Send email notification to customer
+        try {
+            $customerEmail = $user['email'] ?? null;
+            if ($customerEmail) {
+                $ticketNum = $ticket->ticket_number ?? $ticket->ticket_id;
+                $htmlBody  = '<p>Your ticket <strong>#' . htmlspecialchars((string) $ticketNum) . '</strong> has been <strong>Cancelled</strong>.</p>'
+                           . '<p>' . htmlspecialchars($logMessage) . '</p>';
+
+                $graphService = new GraphRelayService();
+
+                if ($ticket->email_thread_id) {
+                    $inReplyTo = TicketMessage::where('ticket_id', $ticket->ticket_id)
+                        ->where('channel', 'email')
+                        ->whereNotNull('email_message_id')
+                        ->orderByDesc('created_at')
+                        ->value('email_message_id');
+
+                    $graphService->sendRelayEmail($ticket, $customerEmail, $userName, $htmlBody, $inReplyTo);
+                } else {
+                    $subject = 'Ticket #' . $ticketNum . ' - Cancelled';
+                    $graphService->sendStandaloneEmail($customerEmail, $subject, $htmlBody, [], [], [], $ticket->ticket_id);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('cancelTicket: email notification failed', ['error' => $e->getMessage(), 'ticket_id' => $id]);
+        }
 
         return response()->json([
             'success' => true,
