@@ -338,6 +338,20 @@ class AuthController extends Controller
                 $token     = base64_encode($tokenData);
                 $companyName = trim($customer->title . ' ' . $customer->name_1 . ' ' . ($customer->name_2 ?? ''));
 
+                // Cek apakah customer ini adalah parent (memiliki end customers)
+                $endCustomersRaw = DB::table('customer as c')
+                    ->join('customer_basic_data as cb', 'c.customer_id', '=', 'cb.customer_id')
+                    ->where('c.parent_customer_id', $customer->customer_id)
+                    ->where('c.is_active', true)
+                    ->select('c.customer_id', 'c.customer_code', 'cb.title', 'cb.name_1')
+                    ->get();
+
+                $endCustomers = $endCustomersRaw->map(fn($ec) => [
+                    'id'   => $ec->customer_id,
+                    'code' => $ec->customer_code,
+                    'name' => trim(($ec->title ? $ec->title . ' ' : '') . $ec->name_1),
+                ])->values()->toArray();
+
                 $userData = [
                     'id'                   => $customer->customer_id,
                     'type'                 => 'customer',
@@ -352,6 +366,8 @@ class AuthController extends Controller
                     'category'             => $customer->customer_category,
                     'group'                => $customer->customer_group,
                     'can_view_all_tickets' => (bool) ($authUser->can_view_all_tickets ?? true),
+                    'is_parent_customer'   => count($endCustomers) > 0,
+                    'end_customers'        => $endCustomers,
                     'role'                 => [
                         'id'   => 3,
                         'name' => 'Customer',

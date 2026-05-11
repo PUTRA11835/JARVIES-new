@@ -462,6 +462,7 @@ function createTicketRow(ticket) {
         </td>
         <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:280px;max-width:360px;">
             <span class="block truncate" title="${escapeHtml(ticket.description || '')}">${escapeHtml(ticket.description || '—')}</span>
+            ${ticket.end_customer_name ? `<span class="block text-xs text-gray-400 mt-0.5">&#8627; ${escapeHtml(ticket.end_customer_name)}</span>` : ''}
         </td>
         <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
         <td class="px-3 py-2.5 whitespace-nowrap">${badge(jInfo.label, jInfo.cls)}</td>

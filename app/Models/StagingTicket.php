@@ -10,6 +10,7 @@ class StagingTicket extends Model
 
     protected $fillable = [
         'customer_id',
+        'end_customer_id',
         'description',
         'body',
         'cc_emails',

@@ -39,8 +39,9 @@ class PasswordSetupController extends Controller
             return redirect()->route('login')->with('error', 'Invalid link.');
         }
 
+        // Token in URL is plaintext; DB stores sha256 hash (same convention as EcoSystem)
         $authUser = DB::table('auth_users')
-            ->where('cp_token', $token)
+            ->where('cp_token', hash('sha256', $token))
             ->where('cp_token_expires_at', '>', now())
             ->first();
 
@@ -63,8 +64,9 @@ class PasswordSetupController extends Controller
             'password_confirmation' => 'required|string',
         ]);
 
+        // Token in URL is plaintext; DB stores sha256 hash (same convention as EcoSystem)
         $authUser = DB::table('auth_users')
-            ->where('cp_token', $request->token)
+            ->where('cp_token', hash('sha256', $request->token))
             ->where('cp_token_expires_at', '>', now())
             ->first();
 
@@ -212,8 +214,10 @@ class PasswordSetupController extends Controller
         $token   = Str::random(64);
         $expires = now()->addHours(24);
 
+        // Store sha256 hash in DB; plaintext token goes into the email URL
+        // (same convention as EcoSystem — keeps both apps interoperable)
         DB::table('auth_users')->where('id', $authUser->id)->update([
-            'cp_token'            => $token,
+            'cp_token'            => hash('sha256', $token),
             'cp_token_expires_at' => $expires,
             'updated_at'          => now(),
         ]);

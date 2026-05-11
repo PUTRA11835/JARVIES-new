@@ -66,6 +66,7 @@ class StagingTicketService
         // Simpan dulu tanpa body agar dapat ID staging
         $staging = StagingTicket::create([
             'customer_id'        => $customerId,
+            'end_customer_id'    => isset($data['end_customer_id']) ? (int) $data['end_customer_id'] : null,
             'description'        => $data['description'],
             'body'               => null, // akan diupdate setelah proses gambar
             'cc_emails'          => isset($data['cc_emails'])

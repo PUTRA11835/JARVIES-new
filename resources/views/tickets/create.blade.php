@@ -87,6 +87,31 @@
         <form id="ticketForm" class="px-6 py-6 space-y-5">
             @csrf
 
+            @if($isParentCustomer)
+            {{-- End Customer Selector (hanya muncul untuk parent customer) --}}
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+                <div class="flex items-center gap-2 text-blue-700">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="text-xs font-semibold">You are submitting this ticket on behalf of an end customer.</span>
+                </div>
+                <div>
+                    <label for="for_customer_id" class="block text-sm font-semibold text-gray-700 mb-1.5">
+                        Ticket For <span class="text-red-500">*</span>
+                    </label>
+                    <select id="for_customer_id" name="for_customer_id" required
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        <option value="">— Select end customer —</option>
+                        @foreach($endCustomers as $ec)
+                        <option value="{{ $ec['id'] }}">{{ $ec['name'] }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">The ticket will remain under your account. This selection tells Eclectic which end customer this ticket is for.</p>
+                </div>
+            </div>
+            @endif
+
             {{-- Subject --}}
             <div>
                 <label for="subject" class="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -259,6 +284,7 @@
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const CSRF_TOKEN = '{{ csrf_token() }}';
+const IS_PARENT_CUSTOMER = {{ $isParentCustomer ? 'true' : 'false' }};
 
 // ===== Confirm Modal =====
 let _confirmResolve = null;
@@ -320,6 +346,7 @@ function clearAllFieldErrors() {
     setFieldError(document.getElementById('subject'), false);
     setQuillError(false);
     document.querySelectorAll('#ccRows input[type="email"]').forEach(i => setFieldError(i, false));
+    if (IS_PARENT_CUSTOMER) setFieldError(document.getElementById('for_customer_id'), false);
 }
 
 // ===== CC Rows =====
@@ -459,6 +486,18 @@ function escH(str) {
 // ===== Client-Side Validation =====
 function validateForm() {
     clearAllFieldErrors();
+
+    // Validasi end customer (hanya untuk parent customer)
+    if (IS_PARENT_CUSTOMER) {
+        const forEl = document.getElementById('for_customer_id');
+        if (!forEl?.value) {
+            setFieldError(forEl, true);
+            showToast('Please select the end customer this ticket is for.', 'warning', 'End Customer Required');
+            forEl?.focus();
+            return false;
+        }
+    }
+
     const subject  = document.getElementById('subject').value.trim();
     const bodyText = quill.getText().trim();
 
@@ -608,6 +647,10 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
         fd.append('client', document.getElementById('client').value.trim());
         ccEmails.forEach(email => fd.append('cc_emails[]', email));
         selectedFiles.forEach(file => fd.append('attachments[]', file));
+        if (IS_PARENT_CUSTOMER) {
+            const forCustomerId = document.getElementById('for_customer_id')?.value;
+            if (forCustomerId) fd.append('for_customer_id', forCustomerId);
+        }
 
         let res, data;
         try {

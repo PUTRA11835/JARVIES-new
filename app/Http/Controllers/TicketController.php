@@ -208,7 +208,10 @@ class TicketController extends Controller
             return redirect()->route('tickets.index');
         }
 
-        return view('tickets.create');
+        return view('tickets.create', [
+            'isParentCustomer' => $sessionUser['is_parent_customer'] ?? false,
+            'endCustomers'     => $sessionUser['end_customers'] ?? [],
+        ]);
     }
 
     /**
@@ -238,7 +241,7 @@ class TicketController extends Controller
             if ($sessionUser['role']['id'] == 1) {
                 Log::info('Admin viewing all tickets');
                 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
@@ -257,7 +260,7 @@ class TicketController extends Controller
                 Log::info('Employee with DSM qualification viewing all tickets');
                 
                 // Employee dengan DSM bisa lihat semua ticket
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
@@ -272,7 +275,7 @@ class TicketController extends Controller
 
                 $canViewAll = $authUser ? (bool) $authUser->can_view_all_tickets : true;
 
-                $ticketQuery = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $ticketQuery = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $sessionUser['id']);
 
                 if (!$canViewAll) {
@@ -379,6 +382,8 @@ class TicketController extends Controller
                         'customer_id' => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
                     ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->employee ? [
                         'employee_id' => $ticket->employee->employee_id,
                         'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
@@ -455,7 +460,22 @@ class TicketController extends Controller
                 'client'          => 'nullable|string|max:255',
                 'attachments'     => 'nullable|array',
                 'attachments.*'   => 'file|max:20480',
+                'for_customer_id' => 'nullable|integer',
             ]);
+
+            // Ticket selalu milik parent customer (Sinergi) — end customer hanya informatif
+            $isParentCustomer = $user['is_parent_customer'] ?? false;
+            $forCustomerId    = !empty($validated['for_customer_id']) ? (int) $validated['for_customer_id'] : null;
+            $ticketCustomerId = $user['id']; // selalu ID Sinergi, bukan end customer
+
+            // Validasi: parent customer wajib memilih end customer
+            if ($isParentCustomer && !$forCustomerId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please select the end customer this ticket is for.',
+                    'errors'  => ['for_customer_id' => ['End customer is required.']],
+                ], 422);
+            }
 
             $senderName  = $user['name'] ?? $user['company_name'] ?? null;
             $senderEmail = $user['email'] ?? null;
@@ -582,10 +602,10 @@ class TicketController extends Controller
                     'email_thread_id'  => $conversationId,
                     'email_message_id' => $internetMsgId,
                     'cc_emails'        => $ccEmails ?: null,
-                    // If email failed, channel falls back to web
                     'channel'          => $emailResult ? 'email' : 'web',
+                    'end_customer_id'  => $forCustomerId,
                 ]),
-                $user['id'],
+                $ticketCustomerId, // selalu $user['id'] (Sinergi)
                 $senderEmail,
                 $senderName,
                 array_column($emailFileAttachments, 'name')
@@ -618,9 +638,8 @@ class TicketController extends Controller
 
             // Build multipart fields
             $multipart = [
-                // Wajib
                 ['name' => 'description',         'contents' => $validated['description']],
-                ['name' => 'customer_id',         'contents' => (string) $user['id']],
+                ['name' => 'customer_id',         'contents' => (string) $ticketCustomerId], // selalu Sinergi
                 // Sangat direkomendasikan
                 ['name' => 'submitted_by_email',  'contents' => $senderEmail],
                 ['name' => 'body',                'contents' => $emailBodyHtml ?: ''],
@@ -628,9 +647,13 @@ class TicketController extends Controller
                 // Opsional
                 ['name' => 'sender_name',         'contents' => $senderName ?? ''],
                 ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
-                // Channel email — karena tiket masuk via email yang dikirim Graph API
                 ['name' => 'channel',             'contents' => 'email'],
             ];
+
+            // Kirim end_customer_id jika parent customer memilih end customer
+            if ($forCustomerId) {
+                $multipart[] = ['name' => 'end_customer_id', 'contents' => (string) $forCustomerId];
+            }
 
             // cc_emails sebagai JSON string [{name, address}] sesuai format EcoSystem
             if (!empty($ccEmails)) {
@@ -886,7 +909,7 @@ class TicketController extends Controller
                 $customerId = $sessionUser['id'];
                 Log::info('My Tickets - Filtering for customer', ['customer_id' => $customerId]);
                 
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $customerId)
                     ->orderBy('created_at', 'desc')
                     ->get();
@@ -917,7 +940,7 @@ class TicketController extends Controller
                 }
 
                 // Ticket yang employee handle sebagai PIC atau member
-                $tickets = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where(function($query) use ($employeeId) {
                         $query->where('ticket.employee_id', $employeeId)
                             ->orWhereHas('members', function($inner) use ($employeeId) {
@@ -1452,7 +1475,7 @@ class TicketController extends Controller
         }
 
         try {
-            $ticket = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+            $ticket = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                 ->findOrFail($id);
 
             // Customer hanya bisa lihat tiket mereka sendiri
@@ -1482,6 +1505,8 @@ class TicketController extends Controller
                         'customer_id'   => $ticket->customer->customer_id,
                         'customer_name' => $ticket->customer->basicData->name_1 ?? $ticket->customer->email,
                     ] : null,
+                    'end_customer_id'   => $ticket->end_customer_id,
+                    'end_customer_name' => $ticket->endCustomer?->basicData?->name_1,
                     'employee' => $ticket->employee ? [
                         'employee_id'   => $ticket->employee->employee_id,
                         'employee_name' => $ticket->employee->basicData->first_name ?? 'Unknown',
@@ -2087,7 +2112,7 @@ class TicketController extends Controller
                 ], 403);
             }
 
-            $query = Ticket::with(['customer.basicData', 'employee.basicData', 'members.basicData'])
+            $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                 ->where('jarvies_status', $status)
                 ->orderBy('created_at', 'desc');
 

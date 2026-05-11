@@ -398,6 +398,15 @@
                         </p>
                     </div>
 
+                    @if($ticket->end_customer_id)
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 mb-1 block">For End Customer</label>
+                        <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                            &#8627; {{ $ticket->endCustomer?->basicData?->name_1 ?? 'N/A' }}
+                        </p>
+                    </div>
+                    @endif
+
                     {{-- Start Date --}}
                     <div>
                         <label class="text-xs font-semibold text-gray-500 mb-1 block">Start Date</label>
