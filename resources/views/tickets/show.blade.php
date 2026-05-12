@@ -817,9 +817,11 @@ function statusIndicator(msg) {
 function createMessageBubble(msg) {
     const isEmployee = msg.sender_type === 'employee';
     const hasIdentity = !!(msg.sender_name || msg.sender_email);
-    // Tangkap pesan sistem: sender_type='system' (data baru) ATAU pesan lama
-    // yang tersimpan sebagai 'customer' tapi isinya pola log sistem.
-    const isSystem = msg.sender_type === 'system'
+    // Tangkap pesan sistem: sender_type='system' DAN channel bukan 'email'.
+    // Email dengan sender_type='system' (CC reply dari pengirim tak terdaftar
+    // yang disimpan processInbox()) adalah pesan manusia — render sebagai bubble.
+    // Fallback regex untuk data lama yang tersimpan sebagai 'customer'.
+    const isSystem = (msg.sender_type === 'system' && msg.channel !== 'email')
                   || /^Status change to "/i.test(msg.message || '');
 
     // System message → centered pill
