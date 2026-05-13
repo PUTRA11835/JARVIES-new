@@ -672,11 +672,12 @@ function renderAttachmentPreview() {
     countEl.classList.remove('hidden');
     countEl.textContent = selectedFiles.length + (selectedFiles.length === 1 ? ' file' : ' files');
     preview.innerHTML = selectedFiles.map((file, idx) => {
-        const icon = file.type.startsWith('image/') ? '🖼️'
-                   : file.type === 'application/pdf' ? '📄'
-                   : /\.(doc|docx)$/i.test(file.name) ? '📝'
-                   : /\.(xls|xlsx|csv)$/i.test(file.name) ? '📊'
-                   : /\.(zip|rar)$/i.test(file.name) ? '🗜️' : '📎';
+        const fileType = file.type.startsWith('image/')        ? 'image'
+                       : file.type === 'application/pdf'       ? 'pdf'
+                       : /\.(doc|docx)$/i.test(file.name)      ? 'document'
+                       : /\.(xls|xlsx|csv)$/i.test(file.name)  ? 'spreadsheet'
+                       : /\.(zip|rar)$/i.test(file.name)       ? 'archive' : 'generic';
+        const icon = attachmentIcon(fileType, file.type, 'w-4 h-4');
         const size = formatFileSize(file.size);
         return `<div class="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs max-w-[180px]">
             <span class="flex-shrink-0">${icon}</span>
@@ -936,7 +937,7 @@ function renderAttachments(attachments, isEmailWithHtml = false) {
         const url   = escHtml(file.url || '#');
         html += `
             <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 max-w-xs">
-                <span class="text-lg flex-shrink-0">${icon}</span>
+                ${icon}
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-gray-700 truncate">${escHtml(file.file_name)}</p>
                     ${size ? `<p class="text-[10px] text-gray-400">${size}</p>` : ''}
@@ -951,13 +952,17 @@ function renderAttachments(attachments, isEmailWithHtml = false) {
     return html;
 }
 
-function attachmentIcon(type, mime) {
-    if (mime?.startsWith('image/'))  return '🖼️';
-    if (type === 'pdf')              return '📄';
-    if (type === 'document')         return '📝';
-    if (type === 'spreadsheet')      return '📊';
-    if (type === 'archive')          return '🗜️';
-    return '📎';
+// SVG icons (not emoji) — production server kadang tidak set Content-Type charset=utf-8
+// sehingga emoji UTF-8 ter-render mojibake (e.g. "ÖŸ"). SVG aman dari masalah charset
+// dan font emoji OS yang berbeda-beda.
+function attachmentIcon(type, mime, sizeClass = 'w-5 h-5') {
+    const cls = `${sizeClass} flex-shrink-0`;
+    if (mime?.startsWith('image/')) return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-purple-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>`;
+    if (type === 'pdf')             return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>`;
+    if (type === 'document')        return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/><path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>`;
+    if (type === 'spreadsheet')     return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm10 1H7v3h6V5zm-6 4v3h2V9H7zm0 4v2h2v-2H7zm4 0v2h2v-2h-2zm0-1v-3h2v3h-2z" clip-rule="evenodd"/></svg>`;
+    if (type === 'archive')         return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm5 1a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0 3a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="${cls} text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>`;
 }
 
 function formatFileSize(bytes) {
