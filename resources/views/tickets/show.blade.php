@@ -200,6 +200,10 @@
         $agentName = trim($fn . ' ' . $ln) ?: 'Assigned';
     }
     $customerName = $ticket->customer?->basicData?->name_1 ?? session('user.company_name') ?? 'Customer';
+    $approvedMandays = \App\Models\CustomerMandays::where('ticket_id', $ticket->ticket_id)
+        ->where('status', 'approved')
+        ->orderByDesc('version')
+        ->first();
 @endphp
 
 <div class="flex gap-6" style="height: calc(100vh - 140px); min-height: 500px;">
@@ -385,6 +389,14 @@
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Ticket Type</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                         {{ $ticket->ticket_type ?? '—' }}
+                    </p>
+                </div>
+
+                {{-- Man Days (Approved) --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-1 block">Man Days</label>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        {{ $approvedMandays ? number_format($approvedMandays->total_mandays, 2) . ' days' : '—' }}
                     </p>
                 </div>
 

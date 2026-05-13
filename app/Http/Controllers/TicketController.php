@@ -348,8 +348,15 @@ class TicketController extends Controller
                     ->all();
             }
 
+            // Bulk-load approved customer_mandays per ticket
+            $approvedMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $tickets->pluck('ticket_id'))
+                ->where('status', 'approved')
+                ->orderByDesc('version')
+                ->get()
+                ->keyBy('ticket_id');
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($unreadTicketIds) {
+            $ticketsData = $tickets->map(function($ticket) use ($unreadTicketIds, $approvedMandaysMap) {
                 // ✅ Hitung pending confirmations untuk admin
                 $pendingCount = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
@@ -406,6 +413,9 @@ class TicketController extends Controller
                     'submitted_by_email' => $ticket->submitted_by_email,
                     'submitted_by_name'  => $ticket->submitted_by_name,
                     'has_unread'         => isset($unreadTicketIds[$ticket->ticket_id]),
+                    'approved_mandays'   => isset($approvedMandaysMap[$ticket->ticket_id])
+                        ? (float) $approvedMandaysMap[$ticket->ticket_id]->total_mandays
+                        : null,
                     'created_at'         => $ticket->created_at?->toIso8601String(),
                     'updated_at'         => $ticket->updated_at?->toIso8601String(),
                 ];
