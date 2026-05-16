@@ -143,6 +143,17 @@
 .cc-tag button:hover { color:#ef4444; }
 #ccRow { border-bottom: 1px solid #e5e7eb; }
 
+/* Meeting card */
+.meeting-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
+.meeting-card-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.meeting-card-header strong { font-size:14px; color:#166534; font-weight:700; }
+.meeting-card-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:6px; font-size:12px; color:#374151; }
+.meeting-card-row span:first-child { flex-shrink:0; }
+.meeting-card-link { color:#2563eb; text-decoration:underline; word-break:break-all; }
+.meeting-card-divider { border:none; border-top:1px solid #bbf7d0; margin:10px 0; }
+.meeting-status-ongoing { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#b45309; background:#fef3c7; border:1px solid #fde68a; border-radius:9999px; padding:2px 8px; }
+.meeting-status-ended   { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #bbf7d0; border-radius:9999px; padding:2px 8px; }
+
 /* Quill message content */
 .message-content p             { margin-bottom: 0.25rem; }
 .message-content p:last-child  { margin-bottom: 0; }
@@ -804,8 +815,98 @@ function statusIndicator(msg) {
     return `<div class="msg-status" title="Saved to ticket">${ICON_CHECK_SINGLE}<span>Sent</span></div>`;
 }
 
+// ==================== MEETING CARD ====================
+function parseMeetingData(msg) {
+    try {
+        const raw = msg.message || msg.message_body || '';
+        if (!raw) return null;
+        const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (d && d._type === 'meeting') return d;
+    } catch (_) {}
+    return null;
+}
+
+function formatMeetingDuration(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h && m) return `${h}h ${m}m`;
+    if (h)      return `${h} hour${h > 1 ? 's' : ''}`;
+    return `${m} min`;
+}
+
+function createMeetingCard(msg) {
+    const d = parseMeetingData(msg);
+    if (!d) return null;
+
+    const scheduledAt = new Date(d.scheduled_at);
+    const isEnded     = !!d.ended_at;
+
+    const timeLabel = scheduledAt.toLocaleString('en-GB', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    }) + ' (WIB)';
+
+    let durationLabel = formatMeetingDuration(d.duration_minutes ?? 0);
+    if (isEnded && d.ended_at) {
+        const endedAt = new Date(d.ended_at);
+        const diffMin = Math.max(0, Math.round((endedAt - scheduledAt) / 60000));
+        if (diffMin > 0) durationLabel = formatMeetingDuration(diffMin);
+    }
+
+    const rawLink   = (d.link || '').trim();
+    const safeLink  = rawLink && !/^https?:\/\//i.test(rawLink) ? 'https://' + rawLink : rawLink;
+    const linkHtml  = safeLink
+        ? `<div class="meeting-card-row">
+               <span>🔗</span>
+               <a href="${escHtml(safeLink)}" target="_blank" rel="noopener noreferrer" class="meeting-card-link">${escHtml(rawLink)}</a>
+           </div>`
+        : '';
+
+    const agendaHtml = d.agenda
+        ? `<div class="meeting-card-row"><span>📝</span><span>${escHtml(d.agenda)}</span></div>`
+        : '';
+
+    const statusHtml = isEnded
+        ? `<span class="meeting-status-ended">✅ Ended · ${durationLabel}</span>`
+        : `<span class="meeting-status-ongoing">🟠 Ongoing</span>`;
+
+    const senderName = escHtml(msg.sender_name || 'Helpdesk');
+    const timeStr    = formatFullDate(new Date(msg.created_at));
+
+    return `<div class="flex gap-3 my-1">
+        <div class="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${senderName.substring(0,1).toUpperCase()}</div>
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                <span class="text-xs text-gray-400">${timeStr}</span>
+            </div>
+            <div class="meeting-card">
+                <div class="meeting-card-header">
+                    <span>📅</span>
+                    <strong>${escHtml(d.title ?? 'Meeting')}</strong>
+                </div>
+                <div class="meeting-card-row">
+                    <span>🕐</span>
+                    <span>${timeLabel} · <span style="font-weight:500">${isEnded ? durationLabel : escHtml(String(d.duration_minutes ?? 0)) + ' min (planned)'}</span></span>
+                </div>
+                ${linkHtml}
+                ${agendaHtml}
+                <hr class="meeting-card-divider">
+                <div>${statusHtml}</div>
+            </div>
+        </div>
+    </div>`;
+}
+
 // ==================== MESSAGE RENDERING ====================
 function createMessageBubble(msg) {
+    // Meeting message → special card (non-interactive)
+    // Detect via message_type field OR by parsing JSON content (_type: "meeting")
+    if (parseMeetingData(msg)) {
+        return createMeetingCard(msg) ?? '';
+    }
+
     const isEmployee = msg.sender_type === 'employee';
     const hasIdentity = !!(msg.sender_name || msg.sender_email);
     // Tangkap pesan sistem: sender_type='system' (data baru) ATAU pesan lama
