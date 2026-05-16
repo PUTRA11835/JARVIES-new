@@ -57,7 +57,8 @@ return [
     */
 
     'ecosystem' => [
-        'url' => env('ECOSYSTEM_API_URL', ''),
+        'url'     => env('ECOSYSTEM_API_URL', ''),
+        'api_key' => env('ECOSYSTEM_API_KEY', ''),
         'timeout' => env('ECOSYSTEM_API_TIMEOUT', 30),
         'retry' => [
             'times' => env('ECOSYSTEM_API_RETRY_TIMES', 3),
