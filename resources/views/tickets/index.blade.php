@@ -185,6 +185,7 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Status</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Priority</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
+                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Man Days</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Assigned To</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Created By</th>
                     </tr>
@@ -468,6 +469,7 @@ function createTicketRow(ticket) {
         <td class="px-3 py-2.5 whitespace-nowrap">${badge(jInfo.label, jInfo.cls)}</td>
         <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_priority ? badge(ticket.ticket_priority, priorityCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
         <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_type ? badge(ticket.ticket_type, typeCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
+        <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${ticket.approved_mandays != null ? ticket.approved_mandays.toFixed(2): '<span class="text-gray-300">—</span>'}</td>
         <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${agentName}</td>
         <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${escapeHtml(ticket.submitted_by_name || ticket.submitted_by_email || '—')}</td>
     </tr>`;

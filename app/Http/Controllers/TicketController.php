@@ -348,8 +348,15 @@ class TicketController extends Controller
                     ->all();
             }
 
+            // Bulk-load approved customer_mandays per ticket
+            $approvedMandaysMap = \App\Models\CustomerMandays::whereIn('ticket_id', $tickets->pluck('ticket_id'))
+                ->where('status', 'approved')
+                ->orderByDesc('version')
+                ->get()
+                ->keyBy('ticket_id');
+
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($unreadTicketIds) {
+            $ticketsData = $tickets->map(function($ticket) use ($unreadTicketIds, $approvedMandaysMap) {
                 // ✅ Hitung pending confirmations untuk admin
                 $pendingCount = DB::table('ticket_confirmation')
                     ->where('ticket_id', $ticket->ticket_id)
@@ -406,6 +413,9 @@ class TicketController extends Controller
                     'submitted_by_email' => $ticket->submitted_by_email,
                     'submitted_by_name'  => $ticket->submitted_by_name,
                     'has_unread'         => isset($unreadTicketIds[$ticket->ticket_id]),
+                    'approved_mandays'   => isset($approvedMandaysMap[$ticket->ticket_id])
+                        ? (float) $approvedMandaysMap[$ticket->ticket_id]->total_mandays
+                        : null,
                     'created_at'         => $ticket->created_at?->toIso8601String(),
                     'updated_at'         => $ticket->updated_at?->toIso8601String(),
                 ];
@@ -1606,6 +1616,7 @@ class TicketController extends Controller
                         'sender_email' => $msg->sender_email,
                         'message'      => $msg->message,
                         'message_html' => $html,
+                        'message_type' => $msg->message_type ?? null,
                         'cc_emails'    => collect(is_array($msg->cc_emails) ? $msg->cc_emails : (json_decode($msg->cc_emails ?? '[]', true) ?? []))
                                             ->map(fn($c) => is_array($c) ? ($c['address'] ?? '') : (string)$c)
                                             ->filter()
@@ -1961,6 +1972,11 @@ class TicketController extends Controller
                     'last_message_at'    => now(),
                     'last_agent_reply_at' => now(),
                 ]);
+            }
+
+            // Reset jarvies_status to 'in process' on every chat message
+            if (!in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
+                $ticket->update(['jarvies_status' => 'in process']);
             }
 
             return response()->json([
@@ -3708,6 +3724,24 @@ class TicketController extends Controller
 
         if (in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
             return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->jarvies_status], 422);
+        }
+
+        // Notify EcoSystem (best-effort) so SLA event log records jarvies_status = closed
+        try {
+            $ecosystemService = app(\App\Services\EcosystemApiService::class);
+            $ecoResult = $ecosystemService->closeTicketOnEcosystem((string) $ticket->ticket_id);
+            if (!$ecoResult['success']) {
+                Log::warning('closeTicket: EcoSystem notification failed (non-blocking)', [
+                    'ticket_id' => $id,
+                    'status'    => $ecoResult['status'],
+                    'message'   => $ecoResult['message'],
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('closeTicket: EcoSystem call exception (non-blocking)', [
+                'ticket_id' => $id,
+                'error'     => $e->getMessage(),
+            ]);
         }
 
         $ticket->update([

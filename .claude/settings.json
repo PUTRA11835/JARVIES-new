@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -iE \"\\\\.php$\")",
+      "Bash(grep -E \"\\\\.\\(vue|jsx|tsx|js|blade\\\\.php\\)$\")"
+    ]
+  }
+}

@@ -344,6 +344,59 @@ class EcosystemApiService
     }
 
     /**
+     * Notify EcoSystem that a ticket has been closed by customer.
+     * Uses X-Jarvies-Key auth (not session Bearer token).
+     *
+     * @return array ['success' => bool, 'status' => int, 'message' => string]
+     */
+    public function closeTicketOnEcosystem(string $ticketId): array
+    {
+        $apiKey = config('services.ecosystem.api_key');
+
+        try {
+            $response = Http::withHeaders([
+                'Accept'         => 'application/json',
+                'Content-Type'   => 'application/json',
+                'X-Jarvies-Key'  => $apiKey,
+            ])
+            ->timeout($this->timeout)
+            ->post($this->buildUrl("/jarvies/tickets/{$ticketId}/close"));
+
+            $body = $response->json();
+
+            return [
+                'success' => $response->successful(),
+                'status'  => $response->status(),
+                'message' => $body['message'] ?? ($response->successful() ? 'Success' : 'Failed'),
+            ];
+
+        } catch (ConnectionException $e) {
+            Log::error('EcoSystem closeTicket connection failed', [
+                'ticket_id' => $ticketId,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'status'  => 0,
+                'message' => 'Cannot connect to EcoSystem server.',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('EcoSystem closeTicket request failed', [
+                'ticket_id' => $ticketId,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'status'  => 500,
+                'message' => 'Request failed: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Test API connection (for debugging)
      */
     public function testConnection(): array
