@@ -18,11 +18,13 @@ class DashboardController extends Controller
         $statusCounts = Ticket::where('customer_id', $customerId)
             ->selectRaw("
                 COUNT(*) as total,
-                SUM(CASE WHEN jarvies_status = 'closed' THEN 1 ELSE 0 END)            as closed,
-                SUM(CASE WHEN jarvies_status = 'in process' THEN 1 ELSE 0 END)        as in_process,
-                SUM(CASE WHEN jarvies_status = 'author action' THEN 1 ELSE 0 END)     as author_action,
-                SUM(CASE WHEN jarvies_status = 'proposed solution' THEN 1 ELSE 0 END) as proposed_solution,
-                SUM(CASE WHEN jarvies_status != 'closed' THEN 1 ELSE 0 END)           as open
+                SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END)                    as closed,
+                SUM(CASE WHEN status = 'in process' THEN 1 ELSE 0 END)                as in_process,
+                SUM(CASE WHEN status = 'waiting on customer' THEN 1 ELSE 0 END)       as waiting_on_customer,
+                SUM(CASE WHEN status = 'waiting to confirmation' THEN 1 ELSE 0 END)   as waiting_to_confirmation,
+                SUM(CASE WHEN status = 'waiting on 3rd party' THEN 1 ELSE 0 END)      as waiting_on_3rd_party,
+                SUM(CASE WHEN status = 'hold' THEN 1 ELSE 0 END)                      as hold,
+                SUM(CASE WHEN status != 'closed' AND status != 'cancelled' THEN 1 ELSE 0 END) as open
             ")
             ->first();
 
@@ -31,20 +33,22 @@ class DashboardController extends Controller
             ->count();
 
         $stats = [
-            'total'             => (int) ($statusCounts->total             ?? 0),
-            'open'              => (int) ($statusCounts->open              ?? 0),
-            'closed'            => (int) ($statusCounts->closed            ?? 0),
-            'in_process'        => (int) ($statusCounts->in_process        ?? 0),
-            'author_action'     => (int) ($statusCounts->author_action     ?? 0),
-            'proposed_solution' => (int) ($statusCounts->proposed_solution ?? 0),
-            'pending_approval'  => $pendingCount,
+            'total'                   => (int) ($statusCounts->total                   ?? 0),
+            'open'                    => (int) ($statusCounts->open                    ?? 0),
+            'closed'                  => (int) ($statusCounts->closed                  ?? 0),
+            'in_process'              => (int) ($statusCounts->in_process              ?? 0),
+            'waiting_on_customer'     => (int) ($statusCounts->waiting_on_customer     ?? 0),
+            'waiting_to_confirmation' => (int) ($statusCounts->waiting_to_confirmation ?? 0),
+            'waiting_on_3rd_party'    => (int) ($statusCounts->waiting_on_3rd_party    ?? 0),
+            'hold'                    => (int) ($statusCounts->hold                    ?? 0),
+            'pending_approval'        => $pendingCount,
         ];
 
         // ── Recent tickets (last 5) ─────────────────────────────────────────
         $recentTickets = Ticket::where('customer_id', $customerId)
             ->orderByDesc('created_at')
             ->limit(5)
-            ->get(['ticket_id', 'ticket_number', 'description', 'jarvies_status', 'ticket_priority', 'created_at']);
+            ->get(['ticket_id', 'ticket_number', 'description', 'status', 'ticket_priority', 'created_at']);
 
         // ── Ticket trend — submissions per day for the last 30 days ─────────
         $trendRows = DB::table('ticket')

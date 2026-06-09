@@ -64,6 +64,7 @@ Route::middleware('jarvies.auth')->group(function () {
         // CRUD Actions
         Route::post('/', [TicketController::class, 'store'])->name('store');
         Route::put('/{id}', [TicketController::class, 'update'])->name('update')->whereNumber('id');
+        Route::patch('/{id}/status', [TicketController::class, 'updateTicketStatus'])->name('status.update')->whereNumber('id');
         Route::delete('/{id}', [TicketController::class, 'destroy'])->name('destroy')->whereNumber('id');
 
         // Customer actions
@@ -81,6 +82,11 @@ Route::middleware('jarvies.auth')->group(function () {
         Route::get('/pending', [TicketController::class, 'pendingPage'])->name('pending');
         Route::get('/{id}/messages', [TicketController::class, 'getMessages'])->name('messages')->whereNumber('id');
         Route::post('/{id}/comment', [TicketController::class, 'addComment'])->name('comment')->whereNumber('id');
+
+        // Meeting
+        Route::get('/{id}/meeting/active', [TicketController::class, 'getActiveMeeting'])->name('meeting.active')->whereNumber('id');
+        Route::post('/{id}/meeting/start',  [TicketController::class, 'startMeeting'])->name('meeting.start')->whereNumber('id');
+        Route::post('/{id}/meeting/end',    [TicketController::class, 'endMeeting'])->name('meeting.end')->whereNumber('id');
 
     });
     

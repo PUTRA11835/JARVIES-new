@@ -605,7 +605,7 @@
 
     /* ── Notification Bell ── */
     var _bellNotifications = []; // [{ ticket_id, ticket_number, subject, updated_at, read, event_type }]
-    var _ticketStates = {};       // { ticket_id: { updated_at, jarvies_status, status, last_message_at } }
+    var _ticketStates = {};       // { ticket_id: { updated_at, status, last_message_at } }
     var _bellInitialized = false;
 
     function _getNotifPrefs() {
@@ -737,7 +737,6 @@
                 tickets.forEach(function(t) {
                     _ticketStates[t.ticket_id] = {
                         updated_at:      t.updated_at,
-                        jarvies_status:  t.jarvies_status,
                         status:          t.status,
                         last_message_at: t.last_message_at,
                     };
@@ -756,7 +755,6 @@
                     // Brand new ticket — no notification (customer submitted it)
                     _ticketStates[t.ticket_id] = {
                         updated_at:      curr,
-                        jarvies_status:  t.jarvies_status,
                         status:          t.status,
                         last_message_at: t.last_message_at,
                     };
@@ -764,7 +762,7 @@
                 }
                 // Migrate old string-format state (from previous version)
                 if (typeof prev === 'string') {
-                    prev = { updated_at: prev, jarvies_status: null, status: null, last_message_at: null };
+                    prev = { updated_at: prev, status: null, last_message_at: null };
                     _ticketStates[t.ticket_id] = prev;
                 }
                 if (prev.updated_at !== curr) {
@@ -772,17 +770,12 @@
                     var eventType = 'updated';
                     if (t.last_message_at && t.last_message_at !== prev.last_message_at) {
                         eventType = 'new_reply';
-                    } else if (t.jarvies_status !== prev.jarvies_status) {
-                        var js = t.jarvies_status;
-                        if (js === 'rejected') eventType = 'rejected';
-                        else if (js === 'open' || js === 'validated') eventType = 'validated';
-                        else eventType = 'updated';
                     } else if (t.status !== prev.status) {
                         var st = t.status;
                         if (st === 'closed')      eventType = 'closed';
                         else if (st === 'hold')   eventType = 'hold';
-                        else if (st === 'in_progress') eventType = 'in_progress';
-                        else if (st === 'cancel') eventType = 'cancelled';
+                        else if (st === 'in process') eventType = 'in_progress';
+                        else if (st === 'cancelled')  eventType = 'cancelled';
                         else if (st === 'open')   eventType = 'reopened';
                         else eventType = 'updated';
                     }
@@ -790,7 +783,6 @@
                     // Update stored state
                     _ticketStates[t.ticket_id] = {
                         updated_at:      curr,
-                        jarvies_status:  t.jarvies_status,
                         status:          t.status,
                         last_message_at: t.last_message_at,
                     };

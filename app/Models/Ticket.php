@@ -22,7 +22,6 @@ class Ticket extends Model
         'end_date',
         'ticket_priority',
         'ticket_type',
-        'jarvies_status',
         'status',
         'wait_close',
         'folder',
@@ -120,13 +119,15 @@ class Ticket extends Model
     public function getStatusLabelAttribute()
     {
         return match($this->status) {
-            'open' => 'Open',
-            'in_progress' => 'In Progress',
-            'hold' => 'Hold',
-            'cancel' => 'Cancelled',
-            'closed' => 'Closed',
-            'reply' => 'Reply',
-            default => 'Unknown'
+            'open'                   => 'Open',
+            'in process'             => 'In Process',
+            'waiting on customer'    => 'Waiting on Customer',
+            'waiting on 3rd party'   => 'Waiting on 3rd Party',
+            'waiting to confirmation'=> 'Waiting to Confirmation',
+            'hold'                   => 'Hold',
+            'cancelled'              => 'Cancelled',
+            'closed'                 => 'Closed',
+            default                  => ucfirst($this->status ?? 'Unknown'),
         };
     }
 

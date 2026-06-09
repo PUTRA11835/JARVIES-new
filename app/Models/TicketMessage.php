@@ -19,6 +19,7 @@ class TicketMessage extends Model
         'sender_name',
         'message',
         'message_html',
+        'message_type',
         'cc_emails',
         'is_internal_note',
         'channel',

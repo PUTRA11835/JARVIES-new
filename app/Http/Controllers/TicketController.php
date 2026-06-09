@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\StagingTicket;
 use App\Models\Ticket;
 use App\Models\TicketAttachment;
+use App\Models\TicketMeeting;
 use App\Models\TicketMessage;
 use App\Services\GraphRelayService;
 use App\Services\StagingTicketService;
@@ -304,7 +305,6 @@ class TicketController extends Controller
                     'description'                => $s->description,
                     'ticket_priority'            => $s->ticket_priority,
                     'ticket_type'                => null,
-                    'jarvies_status'             => 'initial',
                     'status'                     => 'pending',
                     'folder'                     => null,
                     'file_log'                   => null,
@@ -377,7 +377,6 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
-                    'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
@@ -725,9 +724,8 @@ class TicketController extends Controller
                 'body'            => 'nullable|string',
             ]);
 
-            $validated['status']        = 'open';
-            $validated['jarvies_status'] = 'in process';
-            $validated['channel']       = 'web';
+            $validated['status']  = 'open';
+            $validated['channel'] = 'web';
         } else {
             return response()->json([
                 'success' => false,
@@ -831,7 +829,6 @@ class TicketController extends Controller
                 'description' => $payload['description'] ?? null,
                 'ticket_priority' => null,
                 'status' => 'open',
-                'jarvies_status' => 'in process',
             ];
 
             $ticket = Ticket::create($data);
@@ -869,7 +866,6 @@ class TicketController extends Controller
                     'employee_id',
                     'description',
                     'ticket_priority',
-                    'jarvies_status',
                     'status',
                     'start_date',
                     'end_date',
@@ -991,7 +987,6 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
-                    'jarvies_status' => $ticket->jarvies_status,
                     'status' => $ticket->status,
                     'folder' => $ticket->folder,
                     'file_log' => $ticket->file_log,
@@ -1280,9 +1275,9 @@ class TicketController extends Controller
                 $ticket = Ticket::findOrFail($confirmation->ticket_id);
                 $ticket->update([
                     'employee_id' => $confirmation->employee_id,
-                    'man_days' => $confirmation->man_days,
-                    'jarvies_status' => 'in process',
-                    'start_date' => now()
+                    'man_days'    => $confirmation->man_days,
+                    'status'      => 'in process',
+                    'start_date'  => now(),
                 ]);
 
                 // Attach members
@@ -1291,7 +1286,7 @@ class TicketController extends Controller
                     $ticket->members()->sync($memberIds);
                 }
 
-                // Update confirmation - GANTI 'jarvies_status' jadi 'status'
+                // Update confirmation status
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
@@ -1301,7 +1296,7 @@ class TicketController extends Controller
                         'updated_at' => now()
                     ]);
             } else {
-                // Reject - GANTI 'jarvies_status' jadi 'status'
+                // Reject confirmation
                 DB::table('ticket_confirmation')
                     ->where('confirmation_id', $confirmationId)
                     ->update([
@@ -1506,7 +1501,6 @@ class TicketController extends Controller
                     'employee_id'    => $ticket->employee_id,
                     'description'    => $ticket->description,
                     'ticket_priority'=> $ticket->ticket_priority,
-                    'jarvies_status' => $ticket->jarvies_status,
                     'status'         => $ticket->status,
                     'start_date'     => $ticket->start_date,
                     'end_date'       => $ticket->end_date,
@@ -1974,9 +1968,15 @@ class TicketController extends Controller
                 ]);
             }
 
-            // Reset jarvies_status to 'in process' on every chat message
-            if (!in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
-                $ticket->update(['jarvies_status' => 'in process']);
+            try {
+                if (!in_array($ticket->fresh()->status, ['closed', 'cancelled'])) {
+                    $ticket->update(['status' => 'in process']);
+                }
+            } catch (\Exception $statusEx) {
+                Log::warning('addComment: status update failed (non-blocking)', [
+                    'ticket_id' => $ticket->ticket_id,
+                    'error'     => $statusEx->getMessage(),
+                ]);
             }
 
             return response()->json([
@@ -2006,10 +2006,10 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'jarvies_status' => 'sometimes|string|in:in process,author action,proposed solution,closed,sent in to SAP,sent it to support',
+            'status'          => 'sometimes|string|in:open,in process,waiting on customer,waiting on 3rd party,waiting to confirmation,hold,cancelled,closed',
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
-            'employee_id' => 'sometimes|nullable|exists:employee,employee_id',
-            'man_days' => 'sometimes|nullable|numeric|min:0|max:9999.99',
+            'employee_id'     => 'sometimes|nullable|exists:employee,employee_id',
+            'man_days'        => 'sometimes|nullable|numeric|min:0|max:9999.99',
         ]);
 
         if ($validator->fails()) {
@@ -2026,8 +2026,8 @@ class TicketController extends Controller
             // Build update data from validated fields
             $updateData = [];
 
-            if ($request->has('jarvies_status')) {
-                $updateData['jarvies_status'] = $request->jarvies_status;
+            if ($request->has('status')) {
+                $updateData['status'] = $request->status;
             }
             if ($request->has('ticket_priority')) {
                 $updateData['ticket_priority'] = $request->ticket_priority;
@@ -2129,7 +2129,7 @@ class TicketController extends Controller
             }
 
             $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                ->where('jarvies_status', $status)
+                ->where('status', $status)
                 ->orderBy('created_at', 'desc');
 
             // Customer hanya bisa lihat tiket mereka sendiri
@@ -2187,13 +2187,15 @@ class TicketController extends Controller
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 
             $stats = [
-                'total' => (clone $query)->count(),
-                'in_process' => (clone $query)->where('jarvies_status', 'in process')->count(),
-                'author_action' => (clone $query)->where('jarvies_status', 'author action')->count(),
-                'proposed_solution' => (clone $query)->where('jarvies_status', 'proposed solution')->count(),
-                'closed' => (clone $query)->where('jarvies_status', 'closed')->count(),
-                'sent_to_sap' => (clone $query)->where('jarvies_status', 'sent in to SAP')->count(),
-                'sent_to_support' => (clone $query)->where('jarvies_status', 'sent it to support')->count(),
+                'total'                   => (clone $query)->count(),
+                'open'                    => (clone $query)->where('status', 'open')->count(),
+                'in_process'              => (clone $query)->where('status', 'in process')->count(),
+                'waiting_on_customer'     => (clone $query)->where('status', 'waiting on customer')->count(),
+                'waiting_on_3rd_party'    => (clone $query)->where('status', 'waiting on 3rd party')->count(),
+                'waiting_to_confirmation' => (clone $query)->where('status', 'waiting to confirmation')->count(),
+                'hold'                    => (clone $query)->where('status', 'hold')->count(),
+                'cancelled'               => (clone $query)->where('status', 'cancelled')->count(),
+                'closed'                  => (clone $query)->where('status', 'closed')->count(),
                 'by_priority' => [
                     'high' => (clone $query)->where('ticket_priority', 'High')->count(),
                     'medium' => (clone $query)->where('ticket_priority', 'Medium')->count(),
@@ -2409,7 +2411,7 @@ class TicketController extends Controller
     } 
     
     /**
-     * Update ticket status (status field, not jarvies_status)
+     * Update ticket status
      * Admin only
      */
     public function updateTicketStatus(Request $request, $id)
@@ -2424,7 +2426,7 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:open,in_progress,hold,cancel,closed,reply',
+            'status' => 'required|string|in:open,in process,waiting on customer,waiting on 3rd party,waiting to confirmation,hold,cancelled,closed',
         ]);
 
         if ($validator->fails()) {
@@ -3722,11 +3724,11 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
         }
 
-        if (in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
-            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->jarvies_status], 422);
+        if (in_array($ticket->status, ['closed', 'cancelled'])) {
+            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->status], 422);
         }
 
-        // Notify EcoSystem (best-effort) so SLA event log records jarvies_status = closed
+        // Notify EcoSystem (best-effort) so SLA event log records status = closed
         try {
             $ecosystemService = app(\App\Services\EcosystemApiService::class);
             $ecoResult = $ecosystemService->closeTicketOnEcosystem((string) $ticket->ticket_id);
@@ -3745,8 +3747,7 @@ class TicketController extends Controller
         }
 
         $ticket->update([
-            'jarvies_status' => 'closed',
-            'status'         => 'closed',
+            'status' => 'closed',
         ]);
 
         $userName  = $user['name'] ?? $user['company_name'] ?? $user['email'];
@@ -3813,13 +3814,12 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Ticket not found'], 404);
         }
 
-        if (in_array($ticket->jarvies_status, ['closed', 'cancel'])) {
-            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->jarvies_status], 422);
+        if (in_array($ticket->status, ['closed', 'cancelled'])) {
+            return response()->json(['success' => false, 'message' => 'Ticket is already ' . $ticket->status], 422);
         }
 
         $ticket->update([
-            'jarvies_status' => 'cancel',
-            'status'         => 'cancel',
+            'status' => 'cancelled',
         ]);
 
         $userName  = $user['name'] ?? $user['company_name'] ?? $user['email'];
@@ -3894,6 +3894,337 @@ class TicketController extends Controller
         return response($content, 200)
             ->header('Content-Type', $contentType)
             ->header('Cache-Control', 'private, max-age=3600');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MEETING FEATURE
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Roles permitted to use the meeting feature.
+     * Checked against session('user.role.name') for employees (role_id=2),
+     * and always true for admins (role_id=1).
+     */
+    private static array $MEETING_ALLOWED_ROLES = [
+        'Administrator',
+        'Delivery Support Head',
+        'Helpdesk',
+        'RPMO Head',
+    ];
+
+    private function canUseMeeting(): bool
+    {
+        $user = session('user');
+        if (!$user) return false;
+        $roleId   = $user['role']['id'] ?? 0;
+        $roleName = $user['role']['name'] ?? '';
+        if ($roleId === 1) return true;
+        if ($roleId === 2) {
+            foreach (self::$MEETING_ALLOWED_ROLES as $allowed) {
+                if (strcasecmp($roleName, $allowed) === 0) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * GET /tickets/{id}/meeting/active
+     * Return the active (un-ended) meeting for this ticket, or null.
+     */
+    public function getActiveMeeting($id)
+    {
+        if (!$this->canUseMeeting()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $meeting = TicketMeeting::where('ticket_id', $id)
+                ->whereNull('ended_at')
+                ->latest()
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $meeting ? [
+                    'id'              => $meeting->id,
+                    'topic'           => $meeting->topic,
+                    'started_by_name' => $meeting->started_by_name,
+                    'started_at'      => $meeting->started_at->toIso8601String(),
+                ] : null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('getActiveMeeting error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to check meeting status.'], 500);
+        }
+    }
+
+    /**
+     * POST /tickets/{id}/meeting/start
+     * Body: topic (optional)
+     *
+     * - Creates ticket_meetings record
+     * - Creates ticket_message with message_type='meeting_start'
+     * - Inserts ticket_sla_pauses with pause_reason='meeting'
+     * - Updates ticket_sla.resolution_status = 'paused'
+     * - Logs ticket_sla_events event_type='meeting_started'
+     */
+    public function startMeeting(Request $request, $id)
+    {
+        if (!$this->canUseMeeting()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'topic' => 'nullable|string|max:500',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = session('user');
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            // Prevent starting a second meeting while one is still active
+            $activeMeeting = TicketMeeting::where('ticket_id', $id)->whereNull('ended_at')->first();
+            if ($activeMeeting) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A meeting is already in progress for this ticket.',
+                ], 409);
+            }
+
+            DB::beginTransaction();
+
+            $now          = now();
+            $topic        = $request->input('topic');
+            $meetingLink  = $request->input('meeting_link');
+
+            // Create meeting record
+            $meeting = TicketMeeting::create([
+                'ticket_id'       => $ticket->ticket_id,
+                'started_by'      => $user['id'],
+                'started_by_name' => $user['name'] ?? $user['email'] ?? 'Helpdesk',
+                'topic'           => $topic,
+                'meeting_link'    => $meetingLink,
+                'started_at'      => $now,
+            ]);
+
+            // Create meeting_start message (internal, visible only to agents)
+            $msgBody = json_encode([
+                '_type'        => 'meeting_start',
+                'meeting_id'   => $meeting->id,
+                'topic'        => $topic,
+                'meeting_link' => $meetingLink,
+                'started_at'   => $now->toIso8601String(),
+            ]);
+
+            $msg = TicketMessage::create([
+                'ticket_id'           => $ticket->ticket_id,
+                'sender_type'         => 'employee',
+                'sender_id'           => $user['id'],
+                'sender_name'         => $user['name'] ?? 'Helpdesk',
+                'message'             => $msgBody,
+                'message_type'        => 'meeting_start',
+                'is_internal_note'    => true,
+                'channel'             => 'web',
+                'is_read_by_customer' => false,
+                'is_read_by_agent'    => true,
+            ]);
+
+            // Link message back to meeting
+            $meeting->update(['start_message_id' => $msg->id]);
+
+            // Pause SLA — insert into ticket_sla_pauses
+            DB::table('ticket_sla_pauses')->insert([
+                'ticket_id'              => $ticket->ticket_id,
+                'pause_reason'           => 'meeting',
+                'started_at'             => $now,
+                'started_by_message_id'  => $msg->id,
+                'created_at'             => $now,
+            ]);
+
+            // Update ticket_sla status to paused (only if row exists)
+            DB::table('ticket_sla')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->update([
+                    'resolution_status' => 'paused',
+                    'sla_paused_at'     => $now,
+                    'updated_at'        => $now,
+                ]);
+
+            // Log SLA event
+            DB::table('ticket_sla_events')->insert([
+                'ticket_id'          => $ticket->ticket_id,
+                'message_id'         => $msg->id,
+                'event_type'         => 'meeting_started',
+                'jarvis_status'      => $ticket->status,
+                'event_at'           => $now,
+                'notes'              => $topic ?: null,
+                'triggered_by'       => $user['id'],
+                'triggered_by_type'  => 'employee',
+                'created_at'         => $now,
+            ]);
+
+            DB::commit();
+
+            Log::info('Meeting started', [
+                'ticket_id'  => $ticket->ticket_id,
+                'meeting_id' => $meeting->id,
+                'started_by' => $user['id'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Meeting started. SLA clock paused.',
+                'data'    => [
+                    'meeting_id'      => $meeting->id,
+                    'started_at'      => $now->toIso8601String(),
+                    'started_by_name' => $meeting->started_by_name,
+                    'topic'           => $topic,
+                ],
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('startMeeting error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to start meeting.'], 500);
+        }
+    }
+
+    /**
+     * POST /tickets/{id}/meeting/end
+     * Body: summary (optional)
+     *
+     * - Closes active ticket_meetings record, calculates duration
+     * - Creates ticket_message with message_type='meeting_end'
+     * - Closes the open ticket_sla_pauses row, sets duration_hours
+     * - Updates ticket_sla.resolution_status back to prior active status
+     * - Adds to total_waiting_hours
+     * - Logs ticket_sla_events event_type='meeting_ended'
+     */
+    public function endMeeting(Request $request, $id)
+    {
+        if (!$this->canUseMeeting()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'summary' => 'nullable|string|max:2000',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = session('user');
+
+        try {
+            $ticket = Ticket::findOrFail($id);
+
+            $meeting = TicketMeeting::where('ticket_id', $id)->whereNull('ended_at')->latest()->first();
+            if (!$meeting) {
+                return response()->json(['success' => false, 'message' => 'No active meeting found.'], 404);
+            }
+
+            DB::beginTransaction();
+
+            $now             = now();
+            $durationMinutes = (int) $meeting->started_at->diffInMinutes($now);
+            $durationHours   = round($durationMinutes / 60, 2);
+            $summary         = $request->input('summary');
+
+            // Create meeting_end message
+            $msgBody = json_encode([
+                '_type'            => 'meeting_end',
+                'meeting_id'       => $meeting->id,
+                'summary'          => $summary,
+                'started_at'       => $meeting->started_at->toIso8601String(),
+                'ended_at'         => $now->toIso8601String(),
+                'duration_minutes' => $durationMinutes,
+            ]);
+
+            $msg = TicketMessage::create([
+                'ticket_id'           => $ticket->ticket_id,
+                'sender_type'         => 'employee',
+                'sender_id'           => $user['id'],
+                'sender_name'         => $user['name'] ?? 'Helpdesk',
+                'message'             => $msgBody,
+                'message_type'        => 'meeting_end',
+                'is_internal_note'    => true,
+                'channel'             => 'web',
+                'is_read_by_customer' => false,
+                'is_read_by_agent'    => true,
+            ]);
+
+            // Close meeting record
+            $meeting->update([
+                'ended_at'         => $now,
+                'summary'          => $summary,
+                'duration_minutes' => $durationMinutes,
+                'end_message_id'   => $msg->id,
+            ]);
+
+            // Close the open sla_pauses row
+            DB::table('ticket_sla_pauses')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->where('pause_reason', 'meeting')
+                ->whereNull('ended_at')
+                ->update([
+                    'ended_at'             => $now,
+                    'duration_hours'       => $durationHours,
+                    'ended_by_message_id'  => $msg->id,
+                    'resumed_by'           => $user['id'],
+                ]);
+
+            // Resume SLA — add meeting time to total_waiting_hours, un-pause
+            DB::table('ticket_sla')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->update([
+                    'resolution_status'   => 'pending',
+                    'sla_paused_at'       => null,
+                    'total_waiting_hours' => DB::raw("COALESCE(total_waiting_hours, 0) + {$durationHours}"),
+                    'updated_at'          => $now,
+                ]);
+
+            // Log SLA event
+            DB::table('ticket_sla_events')->insert([
+                'ticket_id'         => $ticket->ticket_id,
+                'message_id'        => $msg->id,
+                'event_type'        => 'meeting_ended',
+                'jarvis_status'     => $ticket->status,
+                'event_at'          => $now,
+                'waiting_hours'     => $durationHours,
+                'notes'             => $summary ?: null,
+                'triggered_by'      => $user['id'],
+                'triggered_by_type' => 'employee',
+                'created_at'        => $now,
+            ]);
+
+            DB::commit();
+
+            Log::info('Meeting ended', [
+                'ticket_id'        => $ticket->ticket_id,
+                'meeting_id'       => $meeting->id,
+                'duration_minutes' => $durationMinutes,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Meeting ended. SLA clock resumed.',
+                'data'    => [
+                    'meeting_id'       => $meeting->id,
+                    'ended_at'         => $now->toIso8601String(),
+                    'duration_minutes' => $durationMinutes,
+                    'summary'          => $summary,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('endMeeting error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to end meeting.'], 500);
+        }
     }
 
     /**

@@ -66,26 +66,34 @@
         <span class="uppercase tracking-wide">Status Info</span>
     </button>
     <div id="statsSection" class="overflow-hidden transition-all duration-300" style="max-height: 200px;">
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pb-2">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 pb-2">
             <div id="filterAll" class="bg-white rounded-xl border-2 border-red-600 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('all')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total</p>
                 <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
+            </div>
+            <div id="filterOpen" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('open')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Open</p>
+                <p class="text-2xl font-bold text-sky-600" id="openCount">0</p>
             </div>
             <div id="filterInprocess" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">In Process</p>
                 <p class="text-2xl font-bold text-blue-600" id="processCount">0</p>
             </div>
-            <div id="filterAuthorAction" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('author action')">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Author Action</p>
-                <p class="text-2xl font-bold text-amber-600" id="authorCount">0</p>
+            <div id="filterWaitingCustomer" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting on customer')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait Customer</p>
+                <p class="text-2xl font-bold text-amber-600" id="waitingCustomerCount">0</p>
             </div>
-            <div id="filterProposedSolution" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('proposed solution')">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Proposed</p>
-                <p class="text-2xl font-bold text-purple-600" id="proposedCount">0</p>
+            <div id="filterWaiting3rdParty" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting on 3rd party')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait 3rd Party</p>
+                <p class="text-2xl font-bold text-indigo-600" id="waiting3rdPartyCount">0</p>
             </div>
-            <div id="filterSentInToSAP" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('sent in to SAP')">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Sent to SAP</p>
-                <p class="text-2xl font-bold text-indigo-600" id="sapCount">0</p>
+            <div id="filterWaitingConfirmation" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting to confirmation')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait Confirm</p>
+                <p class="text-2xl font-bold text-purple-600" id="waitingConfirmationCount">0</p>
+            </div>
+            <div id="filterHold" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('hold')">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Hold</p>
+                <p class="text-2xl font-bold text-orange-600" id="holdCount">0</p>
             </div>
             <div id="filterClosed" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('closed')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Closed</p>
@@ -186,7 +194,6 @@
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Priority</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Man Days</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:120px;">Assigned To</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Created By</th>
                     </tr>
                 </thead>
@@ -337,7 +344,7 @@ function startPolling() {
             const freshBase = getScopedTickets();
             filteredTickets = currentFilter === 'all'
                 ? freshBase
-                : freshBase.filter(t => t.jarvies_status === currentFilter);
+                : freshBase.filter(t => t.status === currentFilter);
             updateStats();
             renderTickets();
         } catch {}
@@ -374,12 +381,14 @@ async function loadTickets() {
 // ==================== STATS ====================
 function updateStats() {
     const base = getScopedTickets();
-    document.getElementById('totalCount').textContent    = base.length;
-    document.getElementById('processCount').textContent  = base.filter(t => t.jarvies_status === 'in process').length;
-    document.getElementById('authorCount').textContent   = base.filter(t => t.jarvies_status === 'author action').length;
-    document.getElementById('proposedCount').textContent = base.filter(t => t.jarvies_status === 'proposed solution').length;
-    document.getElementById('sapCount').textContent      = base.filter(t => t.jarvies_status === 'sent in to SAP').length;
-    document.getElementById('closedCount').textContent   = base.filter(t => t.jarvies_status === 'closed').length;
+    document.getElementById('totalCount').textContent              = base.length;
+    document.getElementById('openCount').textContent               = base.filter(t => t.status === 'open').length;
+    document.getElementById('processCount').textContent            = base.filter(t => t.status === 'in process').length;
+    document.getElementById('waitingCustomerCount').textContent    = base.filter(t => t.status === 'waiting on customer').length;
+    document.getElementById('waiting3rdPartyCount').textContent    = base.filter(t => t.status === 'waiting on 3rd party').length;
+    document.getElementById('waitingConfirmationCount').textContent= base.filter(t => t.status === 'waiting to confirmation').length;
+    document.getElementById('holdCount').textContent               = base.filter(t => t.status === 'hold').length;
+    document.getElementById('closedCount').textContent             = base.filter(t => t.status === 'closed').length;
 }
 
 // ==================== RENDER ====================
@@ -423,14 +432,15 @@ function createTicketRow(ticket) {
     const timeColor   = hasUnread ? 'text-blue-600 font-semibold' : 'text-gray-500';
     const numColor    = hasUnread ? 'text-blue-700' : 'text-gray-800';
 
-    const jarviesMap = {
-        'initial':            { label: 'Initial',           cls: 'bg-gray-100 text-gray-600' },
-        'sent it to support': { label: 'To Support',        cls: 'bg-cyan-50 text-cyan-700' },
-        'in process':         { label: 'In Process',        cls: 'bg-blue-50 text-blue-700' },
-        'author action':      { label: 'Author Action',     cls: 'bg-amber-50 text-amber-700' },
-        'proposed solution':  { label: 'Proposed Solution', cls: 'bg-purple-50 text-purple-700' },
-        'sent in to SAP':     { label: 'Sent to SAP',       cls: 'bg-indigo-50 text-indigo-700' },
-        'closed':             { label: 'Closed',            cls: 'bg-green-50 text-green-700' },
+    const statusMap = {
+        'open':                    { label: 'Open',                  cls: 'bg-sky-50 text-sky-700' },
+        'in process':              { label: 'In Process',            cls: 'bg-blue-50 text-blue-700' },
+        'waiting on customer':     { label: 'Waiting on Customer',   cls: 'bg-amber-50 text-amber-700' },
+        'waiting on 3rd party':    { label: 'Waiting on 3rd Party',  cls: 'bg-indigo-50 text-indigo-700' },
+        'waiting to confirmation': { label: 'Waiting Confirmation',  cls: 'bg-purple-50 text-purple-700' },
+        'hold':                    { label: 'Hold',                  cls: 'bg-orange-50 text-orange-700' },
+        'cancelled':               { label: 'Cancelled',             cls: 'bg-red-50 text-red-700' },
+        'closed':                  { label: 'Closed',                cls: 'bg-green-50 text-green-700' },
     };
     const priorityMap = {
         'Very High': 'bg-purple-100 text-purple-700',
@@ -447,7 +457,7 @@ function createTicketRow(ticket) {
 
     const jInfo       = isStaging
         ? { label: 'Awaiting Validation', cls: 'bg-gray-100 text-gray-500 italic' }
-        : (jarviesMap[ticket.jarvies_status] || { label: ticket.jarvies_status || '—', cls: 'bg-gray-100 text-gray-500' });
+        : (statusMap[ticket.status] || { label: ticket.status || '—', cls: 'bg-gray-100 text-gray-500' });
     const priorityCls = priorityMap[ticket.ticket_priority] || 'bg-gray-100 text-gray-500';
     const typeCls     = typeMap[ticket.ticket_type] || 'bg-gray-100 text-gray-500';
     const agentName   = ticket.employee?.employee_name || '<span class="text-gray-400 text-xs">Unassigned</span>';
@@ -470,7 +480,6 @@ function createTicketRow(ticket) {
         <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_priority ? badge(ticket.ticket_priority, priorityCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
         <td class="px-3 py-2.5 whitespace-nowrap">${ticket.ticket_type ? badge(ticket.ticket_type, typeCls) : '<span class="text-gray-300 text-xs">—</span>'}</td>
         <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${ticket.approved_mandays != null ? ticket.approved_mandays.toFixed(2): '<span class="text-gray-300">—</span>'}</td>
-        <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${agentName}</td>
         <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap">${escapeHtml(ticket.submitted_by_name || ticket.submitted_by_email || '—')}</td>
     </tr>`;
 }
@@ -518,7 +527,7 @@ function setTicketScope(scope) {
 
     // Re-apply current status filter on the new scope
     const base = getScopedTickets();
-    filteredTickets = currentFilter === 'all' ? base : base.filter(t => t.jarvies_status === currentFilter);
+    filteredTickets = currentFilter === 'all' ? base : base.filter(t => t.status === currentFilter);
     updateStats();
     renderTickets();
 }
@@ -528,12 +537,14 @@ function filterTickets(status) {
     currentFilter = status;
 
     const cardMap = {
-        'all':               'filterAll',
-        'in process':        'filterInprocess',
-        'author action':     'filterAuthorAction',
-        'proposed solution': 'filterProposedSolution',
-        'sent in to SAP':    'filterSentInToSAP',
-        'closed':            'filterClosed',
+        'all':                    'filterAll',
+        'open':                   'filterOpen',
+        'in process':             'filterInprocess',
+        'waiting on customer':    'filterWaitingCustomer',
+        'waiting on 3rd party':   'filterWaiting3rdParty',
+        'waiting to confirmation':'filterWaitingConfirmation',
+        'hold':                   'filterHold',
+        'closed':                 'filterClosed',
     };
 
     Object.values(cardMap).forEach(id => {
@@ -550,7 +561,7 @@ function filterTickets(status) {
     }
 
     const base = getScopedTickets();
-    filteredTickets = status === 'all' ? base : base.filter(t => t.jarvies_status === status);
+    filteredTickets = status === 'all' ? base : base.filter(t => t.status === status);
     currentPage = 1;
     renderTickets();
 }
@@ -562,7 +573,7 @@ function updateFilterOptions() {
     filterSelect.innerHTML = '<option value="">Select value</option>';
 
     const options = {
-        'status':   ['in process', 'author action', 'proposed solution', 'sent in to SAP', 'closed'],
+        'status':   ['open', 'in process', 'waiting on customer', 'waiting on 3rd party', 'waiting to confirmation', 'hold', 'cancelled', 'closed'],
         'type':     ['Incident', 'Service Request', 'Change Request', 'Consult'],
         'priority': ['Very High', 'High', 'Medium', 'Low'],
     };
@@ -590,11 +601,11 @@ function applyFilters() {
         if (filterType && filterValue) {
             const fieldKey = filterType === 'priority' ? 'ticket_priority'
                            : filterType === 'type'     ? 'ticket_type'
-                           : 'jarvies_status';
+                           : 'status';
             matchesFilter = ticket[fieldKey] === filterValue;
         }
 
-        const matchesStatus = currentFilter === 'all' || ticket.jarvies_status === currentFilter;
+        const matchesStatus = currentFilter === 'all' || ticket.status === currentFilter;
         return matchesSearch && matchesFilter && matchesStatus;
     });
 

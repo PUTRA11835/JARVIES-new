@@ -143,7 +143,33 @@
 .cc-tag button:hover { color:#ef4444; }
 #ccRow { border-bottom: 1px solid #e5e7eb; }
 
-/* Meeting card */
+/* Meeting card — start (purple) */
+.meeting-card-start { background:#faf5ff; border:1px solid #d8b4fe; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
+.meeting-card-start .mc-header strong { color:#6b21a8; }
+.meeting-card-start .mc-divider { border-top-color:#d8b4fe; }
+.meeting-card-start .mc-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#6b21a8; background:#ede9fe; border:1px solid #c4b5fd; border-radius:9999px; padding:2px 8px; }
+
+/* Meeting card — end (green) */
+.meeting-card-end { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
+.meeting-card-end .mc-header strong { color:#166534; }
+.meeting-card-end .mc-divider { border-top-color:#bbf7d0; }
+.meeting-card-end .mc-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #bbf7d0; border-radius:9999px; padding:2px 8px; }
+
+/* Shared meeting card internals */
+.mc-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.mc-header strong { font-size:14px; font-weight:700; }
+.mc-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:6px; font-size:12px; color:#374151; }
+.mc-row span:first-child { flex-shrink:0; }
+.mc-divider { border:none; border-top:1px solid; margin:10px 0; }
+.mc-join-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:9px; font-size:12px; font-weight:700; text-decoration:none; margin-top:4px; transition:all .15s; cursor:pointer; border:none; }
+.mc-join-btn:hover { transform:translateY(-1px); filter:brightness(1.08); box-shadow:0 4px 12px rgba(0,0,0,.18); }
+.mc-join-btn.zoom   { background:#2D8CFF; color:#fff; box-shadow:0 2px 8px rgba(45,140,255,.35); }
+.mc-join-btn.gmeet  { background:#1a73e8; color:#fff; box-shadow:0 2px 8px rgba(26,115,232,.35); }
+.mc-join-btn.teams  { background:#464EB8; color:#fff; box-shadow:0 2px 8px rgba(70,78,184,.35); }
+.mc-join-btn.webex  { background:#00B4D8; color:#fff; box-shadow:0 2px 8px rgba(0,180,216,.35); }
+.mc-join-btn.generic { background:linear-gradient(135deg,#6d28d9,#7c3aed); color:#fff; box-shadow:0 2px 8px rgba(109,40,217,.35); }
+
+/* Legacy meeting card (backward compat) */
 .meeting-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
 .meeting-card-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
 .meeting-card-header strong { font-size:14px; color:#166534; font-weight:700; }
@@ -153,6 +179,10 @@
 .meeting-card-divider { border:none; border-top:1px solid #bbf7d0; margin:10px 0; }
 .meeting-status-ongoing { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#b45309; background:#fef3c7; border:1px solid #fde68a; border-radius:9999px; padding:2px 8px; }
 .meeting-status-ended   { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #bbf7d0; border-radius:9999px; padding:2px 8px; }
+
+/* Meeting modal */
+#meetingModal .modal-field { width:100%; border:1px solid #d1d5db; border-radius:10px; padding:8px 12px; font-size:13px; color:#374151; resize:none; outline:none; transition:border-color .15s; }
+#meetingModal .modal-field:focus { border-color:#7c3aed; box-shadow:0 0 0 3px rgba(124,58,237,.1); }
 
 /* Quill message content */
 .message-content p             { margin-bottom: 0.25rem; }
@@ -170,16 +200,16 @@
 .sb-prio-high      { background:#fee2e2; color:#b91c1c; }
 .sb-prio-medium    { background:#dbeafe; color:#1d4ed8; }
 .sb-prio-low       { background:#dcfce7; color:#15803d; }
-/* Jarvies status badge classes */
-.sb-jstat-in-process    { background:#ede9fe; color:#6d28d9; }
-.sb-jstat-author-action { background:#fef9c3; color:#a16207; }
-.sb-jstat-proposed      { background:#ccfbf1; color:#0f766e; }
-.sb-jstat-closed        { background:#dcfce7; color:#15803d; }
-.sb-jstat-sent-sap      { background:#e0e7ff; color:#3730a3; }
-.sb-jstat-sent-support  { background:#e0f2fe; color:#0369a1; }
-.sb-jstat-cancel        { background:#fee2e2; color:#b91c1c; }
-.sb-jstat-initial       { background:#f3f4f6; color:#4b5563; }
-.sb-jstat-default       { background:#f3f4f6; color:#4b5563; }
+/* Status badge classes */
+.sb-jstat-open           { background:#e0f2fe; color:#0369a1; }
+.sb-jstat-in-process     { background:#ede9fe; color:#6d28d9; }
+.sb-jstat-wait-customer  { background:#fef9c3; color:#a16207; }
+.sb-jstat-wait-3rdparty  { background:#e0e7ff; color:#3730a3; }
+.sb-jstat-wait-confirm   { background:#ccfbf1; color:#0f766e; }
+.sb-jstat-hold           { background:#ffedd5; color:#c2410c; }
+.sb-jstat-cancelled      { background:#fee2e2; color:#b91c1c; }
+.sb-jstat-closed         { background:#dcfce7; color:#15803d; }
+.sb-jstat-default        { background:#f3f4f6; color:#4b5563; }
 </style>
 @endpush
 
@@ -204,6 +234,17 @@
         'Medium' => 'bg-blue-50 text-blue-700 border-blue-200',
         'High'   => 'bg-red-50 text-red-700 border-red-200',
     ];
+    $meetingAllowedRoles = ['Administrator', 'Delivery Support Head', 'Helpdesk', 'RPMO Head'];
+    $sessionUser         = session('user');
+    $canUseMeeting       = $sessionUser && (
+        ($sessionUser['role']['id'] ?? 0) === 1 ||
+        (($sessionUser['role']['id'] ?? 0) === 2 &&
+            collect($meetingAllowedRoles)->contains(
+                fn($r) => strcasecmp($r, $sessionUser['role']['name'] ?? '') === 0
+            )
+        )
+    );
+
     $agentName = 'Unassigned';
     if ($ticket->employee) {
         $fn = $ticket->employee->basicData->first_name ?? '';
@@ -347,6 +388,18 @@
 
                     <div class="flex items-center justify-end mt-2 mb-1 gap-2">
                         <span id="attachCount" class="hidden text-xs text-blue-600 font-medium mr-auto"></span>
+
+                        @if($canUseMeeting)
+                        {{-- Meeting button — toggled by JS based on active meeting state --}}
+                        <button id="meetingBtn" onclick="openMeetingStartModal()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 border border-violet-300 text-xs font-semibold rounded-lg hover:bg-violet-200 transition-all">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            <span id="meetingBtnLabel">Meeting</span>
+                        </button>
+                        @endif
+
                         <button onclick="sendReply()" id="sendBtn"
                             class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-700 text-white text-xs font-semibold rounded-lg hover:bg-red-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                             <svg id="sendIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -365,7 +418,7 @@
         </div>
     </div>
 
-    {{-- ═══ RIGHT: Properties (read-only) ═══ --}}
+    {{-- ═══ RIGHT: Properties ═══ --}}
     <div id="ticketRightPanel" class="hidden xl:flex xl:flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-y-auto shrink-0" style="width:288px;transition:width .2s ease,opacity .2s ease;">
         <div class="p-5">
             <h4 class="text-xs font-bold text-gray-900 uppercase tracking-wide mb-4">Properties</h4>
@@ -379,13 +432,63 @@
                     </p>
                 </div>
 
-                {{-- Jarvies Status --}}
+                {{-- Status --}}
+                @if(session('user.role.id') == 1 || session('user.role.id') == 2)
+                {{-- Admin/Employee: radio buttons --}}
+                <div>
+                    <label class="text-xs font-semibold text-gray-500 mb-2 block">Status</label>
+                    <div class="flex flex-col gap-1" id="statusRadioGroup">
+                        @php
+                            $statusOptions = [
+                                'open'                    => ['label' => 'Open',                  'color' => 'sky'],
+                                'in process'              => ['label' => 'In Process',            'color' => 'blue'],
+                                'waiting on customer'     => ['label' => 'Waiting on Customer',   'color' => 'amber'],
+                                'waiting on 3rd party'    => ['label' => 'Waiting on 3rd Party',  'color' => 'indigo'],
+                                'waiting to confirmation' => ['label' => 'Waiting Confirmation',  'color' => 'purple'],
+                                'hold'                    => ['label' => 'Hold',                  'color' => 'orange'],
+                                'cancelled'               => ['label' => 'Cancelled',             'color' => 'red'],
+                                'closed'                  => ['label' => 'Closed',                'color' => 'green'],
+                            ];
+                            $currentStatus = $ticket->status ?? 'open';
+                        @endphp
+                        @foreach($statusOptions as $val => $opt)
+                        <button type="button"
+                                onclick="selectStatus('{{ $val }}')"
+                                data-status="{{ $val }}"
+                                class="status-radio-btn w-full text-left px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all
+                                       {{ $val === $currentStatus
+                                            ? 'bg-' . $opt['color'] . '-100 text-' . $opt['color'] . '-700 border-' . $opt['color'] . '-400 ring-1 ring-' . $opt['color'] . '-400'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50' }}">
+                            <span class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full border-2 flex-shrink-0 status-dot
+                                             {{ $val === $currentStatus ? 'bg-' . $opt['color'] . '-500 border-' . $opt['color'] . '-500' : 'border-gray-300' }}"></span>
+                                {{ $opt['label'] }}
+                            </span>
+                        </button>
+                        @endforeach
+                    </div>
+                    <button onclick="saveStatus()"
+                            id="saveStatusBtn"
+                            class="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-all shadow-sm disabled:opacity-50">
+                        <svg id="saveStatusIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <svg id="saveStatusSpinner" class="hidden animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Kirim
+                    </button>
+                </div>
+                @else
+                {{-- Customer: read-only --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Status</label>
                     <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 capitalize">
-                        {{ $ticket->jarvies_status ?? 'in process' }}
+                        {{ $ticket->status ?? 'open' }}
                     </p>
                 </div>
+                @endif
 
                 {{-- Priority --}}
                 <div>
@@ -466,7 +569,7 @@
                 </div>
 
                 {{-- Customer Actions --}}
-                @if(!in_array($ticket->jarvies_status, ['closed', 'cancel']))
+                @if(!in_array($ticket->status, ['closed', 'cancelled']))
                 <div class="pt-4 border-t border-gray-100 space-y-2">
                     <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Actions</p>
 
@@ -529,6 +632,114 @@
     </div>
 </div>
 
+@if($canUseMeeting)
+{{-- ==================== MEETING MODAL ==================== --}}
+<div id="meetingModal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeMeetingModal()"></div>
+    <div id="meetingModalCard"
+         class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm transform transition-all duration-200 scale-95 opacity-0 overflow-hidden">
+
+        {{-- Start Meeting Panel --}}
+        <div id="meetingPanelStart">
+            <div class="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
+                <div class="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900">Start Meeting?</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">SLA clock will be paused while meeting is in progress.</p>
+                </div>
+            </div>
+            <div class="px-6 py-4">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Topic <span class="font-normal text-gray-400">(optional)</span></label>
+                <textarea id="meetingTopicInput" rows="2"
+                    class="modal-field"
+                    placeholder="What will be discussed in this meeting?"></textarea>
+                <label class="block text-xs font-semibold text-gray-600 mt-3 mb-1.5">
+                    <svg class="inline w-3.5 h-3.5 mr-1 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    Meeting Link <span class="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input id="meetingLinkInput" type="url"
+                    class="modal-field"
+                    placeholder="https://zoom.us/j/... or Google Meet / Teams link">
+                <div class="mt-3 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                    <span>Meeting time is recorded as <strong>waiting hours</strong> and does not count toward SLA resolution time.</span>
+                </div>
+            </div>
+            <div class="flex gap-3 px-6 pb-6">
+                <button onclick="closeMeetingModal()"
+                    class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-all">
+                    Cancel
+                </button>
+                <button onclick="doStartMeeting()" id="startMeetingConfirmBtn"
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-all flex items-center justify-center gap-1.5">
+                    <svg id="startMeetingIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
+                    </svg>
+                    <svg id="startMeetingSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Start Meeting
+                </button>
+            </div>
+        </div>
+
+        {{-- End Meeting Panel --}}
+        <div id="meetingPanelEnd" class="hidden">
+            <div class="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-gray-100">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900">End Meeting?</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">SLA clock will resume and meeting duration added to waiting hours.</p>
+                </div>
+            </div>
+            <div class="px-6 py-4">
+                <div id="meetingDurationLabel" class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-3 hidden">
+                    <svg class="inline w-3.5 h-3.5 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span id="meetingDurationText"></span>
+                </div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Summary <span class="font-normal text-gray-400">(optional)</span></label>
+                <textarea id="meetingSummaryInput" rows="3"
+                    class="modal-field"
+                    placeholder="Brief summary of what was discussed..."></textarea>
+            </div>
+            <div class="flex gap-3 px-6 pb-6">
+                <button onclick="closeMeetingModal()"
+                    class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-all">
+                    Cancel
+                </button>
+                <button onclick="doEndMeeting()" id="endMeetingConfirmBtn"
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-all flex items-center justify-center gap-1.5">
+                    <svg id="endMeetingIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+                    </svg>
+                    <svg id="endMeetingSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    End Meeting
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+@endif
+
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
 const ticketId   = {{ $ticket->ticket_id }};
@@ -552,6 +763,10 @@ let lastMessageId = null;
 let allSidebarTickets  = [];
 let quill;
 let selectedFiles      = [];
+
+// ── Meeting state ──────────────────────────────────────────────────────────
+const canUseMeeting = {{ $canUseMeeting ? 'true' : 'false' }};
+let activeMeeting   = null; // { id, topic, started_by_name, started_at }
 
 document.addEventListener('DOMContentLoaded', function () {
     // Init Quill rich text editor
@@ -625,6 +840,7 @@ document.addEventListener('DOMContentLoaded', function () {
     renderCcTags();
     loadMessages();
     loadSidebarTickets();
+    if (canUseMeeting) loadActiveMeeting();
     startPolling();
 });
 
@@ -838,7 +1054,9 @@ function statusIndicator(msg) {
 }
 
 // ==================== MEETING CARD ====================
+
 function parseMeetingData(msg) {
+    // Legacy format: JSON body with _type:'meeting'
     try {
         const raw = msg.message || msg.message_body || '';
         if (!raw) return null;
@@ -848,7 +1066,36 @@ function parseMeetingData(msg) {
     return null;
 }
 
+function parseMeetingBody(msg) {
+    // JSON body format: _type = 'meeting_start' | 'meeting_end' (stored in message field)
+    try {
+        const raw = msg.message || '';
+        if (!raw) return null;
+        const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (d && (d._type === 'meeting_start' || d._type === 'meeting_end'
+                   || d._type === 'meeting_started' || d._type === 'meeting_ended')) return d;
+    } catch (_) {}
+    return null;
+}
+
+// Detects ANY meeting message regardless of format
+function isMeetingMessage(msg) {
+    const t = msg.message_type;
+    return t === 'meeting_start' || t === 'meeting_end'
+        || t === 'meeting_started' || t === 'meeting_ended'
+        || parseMeetingBody(msg) !== null;
+}
+
+function isMeetingStart(msg) {
+    return msg.message_type === 'meeting_start' || msg.message_type === 'meeting_started';
+}
+
+function isMeetingEnd(msg) {
+    return msg.message_type === 'meeting_end' || msg.message_type === 'meeting_ended';
+}
+
 function formatMeetingDuration(minutes) {
+    if (!minutes || minutes <= 0) return '< 1 min';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     if (h && m) return `${h}h ${m}m`;
@@ -856,45 +1103,140 @@ function formatMeetingDuration(minutes) {
     return `${m} min`;
 }
 
+// Detects meeting platform from URL for styled join button
+function parseMeetingPlatform(url) {
+    if (!url) return null;
+    try {
+        const host = new URL(url).hostname.replace('www.', '').toLowerCase();
+        if (host.includes('zoom.us') || host.includes('zoom.com'))      return { cls: 'zoom',    label: 'Join Zoom',   icon: '🎥' };
+        if (host.includes('meet.google.com'))                            return { cls: 'gmeet',   label: 'Join Google Meet', icon: '📹' };
+        if (host.includes('teams.microsoft.com') || host.includes('teams.live.com')) return { cls: 'teams', label: 'Join Teams', icon: '💻' };
+        if (host.includes('webex.com'))                                  return { cls: 'webex',   label: 'Join Webex',  icon: '📡' };
+    } catch (_) {}
+    return { cls: 'generic', label: 'Join Meeting', icon: '🔗' };
+}
+
+// Parses EcoSystem plain-text "topic\nLink: url" format
+function parseMeetingStartText(rawText) {
+    if (!rawText) return { topic: '', link: null };
+    const lines = rawText.split('\n');
+    let link = null;
+    const topicLines = [];
+    for (const line of lines) {
+        const m = line.match(/^Link:\s*(.+)$/i);
+        if (m) { link = m[1].trim(); }
+        else   { topicLines.push(line); }
+    }
+    return { topic: topicLines.join('\n').trim(), link };
+}
+
+// Builds the join button HTML for a meeting link
+function buildJoinBtn(url) {
+    if (!url) return '';
+    const p = parseMeetingPlatform(url);
+    if (!p) return '';
+    return `<a href="${escHtml(url)}" target="_blank" rel="noopener noreferrer"
+        class="mc-join-btn ${p.cls}" onclick="event.stopPropagation()">
+        <span>${p.icon}</span>
+        <span>${p.label}</span>
+        <svg class="w-3.5 h-3.5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+    </a>`;
+}
+
+function createMeetingStartCard(msg, d) {
+    const senderName = escHtml(msg.sender_name || 'Helpdesk');
+    const initials   = senderName.substring(0, 1).toUpperCase();
+    const timeStr    = formatFullDate(new Date(msg.created_at));
+
+    // Resolve topic + link from either JSON body (new) or plain-text (EcoSystem)
+    let topicText, meetingLink;
+    if (d && (d.topic || d.meeting_link)) {
+        topicText   = d.topic   || '';
+        meetingLink = d.meeting_link || null;
+    } else {
+        const parsed = parseMeetingStartText(msg.message || '');
+        topicText   = parsed.topic;
+        meetingLink = parsed.link;
+    }
+
+    const topicHtml = topicText
+        ? `<div class="mc-row"><svg class="w-3.5 h-3.5 text-violet-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>${escHtml(topicText)}</span></div>`
+        : '';
+    const joinBtnHtml = buildJoinBtn(meetingLink);
+
+    return `<div class="flex gap-3 my-1">
+        <div class="w-8 h-8 bg-violet-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                <span class="text-xs text-gray-400">${timeStr}</span>
+            </div>
+            <div class="meeting-card-start">
+                <div class="mc-header">
+                    <svg class="w-4 h-4 text-violet-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <strong>Meeting Started</strong>
+                </div>
+                ${topicHtml}
+                ${joinBtnHtml}
+                <hr class="mc-divider">
+                <div><span class="mc-badge">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    SLA Paused
+                </span></div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function createMeetingEndCard(msg, d) {
+    const senderName    = escHtml(msg.sender_name || 'Helpdesk');
+    const initials      = senderName.substring(0, 1).toUpperCase();
+    const timeStr       = formatFullDate(new Date(msg.created_at));
+    const summaryText   = d.summary || msg.message || '';
+    const summaryHtml   = summaryText
+        ? `<div class="mc-row"><svg class="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span style="white-space:pre-wrap">${escHtml(summaryText)}</span></div>`
+        : '';
+    const durationHtml  = d.duration_minutes != null
+        ? `<div class="mc-row"><svg class="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span>Duration: <strong>${formatMeetingDuration(d.duration_minutes)}</strong></span></div>`
+        : '';
+
+    return `<div class="flex gap-3 my-1">
+        <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-sm font-semibold text-gray-900">${senderName}</span>
+                <span class="text-xs text-gray-400">${timeStr}</span>
+            </div>
+            <div class="meeting-card-end">
+                <div class="mc-header">
+                    <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <strong>Meeting Ended</strong>
+                </div>
+                ${durationHtml}
+                ${summaryHtml}
+                <hr class="mc-divider">
+                <div><span class="mc-badge">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    SLA Resumed
+                </span></div>
+            </div>
+        </div>
+    </div>`;
+}
+
 function createMeetingCard(msg) {
+    // Legacy format fallback
     const d = parseMeetingData(msg);
     if (!d) return null;
 
-    const scheduledAt = new Date(d.scheduled_at);
-    const isEnded     = !!d.ended_at;
-
-    const timeLabel = scheduledAt.toLocaleString('en-GB', {
-        timeZone: 'Asia/Jakarta',
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: false
-    }) + ' (WIB)';
-
-    let durationLabel = formatMeetingDuration(d.duration_minutes ?? 0);
-    if (isEnded && d.ended_at) {
-        const endedAt = new Date(d.ended_at);
-        const diffMin = Math.max(0, Math.round((endedAt - scheduledAt) / 60000));
-        if (diffMin > 0) durationLabel = formatMeetingDuration(diffMin);
-    }
-
-    const rawLink   = (d.link || '').trim();
-    const safeLink  = rawLink && !/^https?:\/\//i.test(rawLink) ? 'https://' + rawLink : rawLink;
-    const linkHtml  = safeLink
-        ? `<div class="meeting-card-row">
-               <span>🔗</span>
-               <a href="${escHtml(safeLink)}" target="_blank" rel="noopener noreferrer" class="meeting-card-link">${escHtml(rawLink)}</a>
-           </div>`
-        : '';
-
-    const agendaHtml = d.agenda
-        ? `<div class="meeting-card-row"><span>📝</span><span>${escHtml(d.agenda)}</span></div>`
-        : '';
-
-    const statusHtml = isEnded
-        ? `<span class="meeting-status-ended">✅ Ended · ${durationLabel}</span>`
-        : `<span class="meeting-status-ongoing">🟠 Ongoing</span>`;
-
     const senderName = escHtml(msg.sender_name || 'Helpdesk');
     const timeStr    = formatFullDate(new Date(msg.created_at));
+    const isEnded    = !!d.ended_at;
+    const statusHtml = isEnded
+        ? `<span class="meeting-status-ended">Ended</span>`
+        : `<span class="meeting-status-ongoing">Ongoing</span>`;
 
     return `<div class="flex gap-3 my-1">
         <div class="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${senderName.substring(0,1).toUpperCase()}</div>
@@ -904,16 +1246,7 @@ function createMeetingCard(msg) {
                 <span class="text-xs text-gray-400">${timeStr}</span>
             </div>
             <div class="meeting-card">
-                <div class="meeting-card-header">
-                    <span>📅</span>
-                    <strong>${escHtml(d.title ?? 'Meeting')}</strong>
-                </div>
-                <div class="meeting-card-row">
-                    <span>🕐</span>
-                    <span>${timeLabel} · <span style="font-weight:500">${isEnded ? durationLabel : escHtml(String(d.duration_minutes ?? 0)) + ' min (planned)'}</span></span>
-                </div>
-                ${linkHtml}
-                ${agendaHtml}
+                <div class="meeting-card-header"><span>📅</span><strong>${escHtml(d.title ?? 'Meeting')}</strong></div>
                 <hr class="meeting-card-divider">
                 <div>${statusHtml}</div>
             </div>
@@ -921,10 +1254,185 @@ function createMeetingCard(msg) {
     </div>`;
 }
 
+// ==================== MEETING ACTIONS ====================
+
+async function loadActiveMeeting() {
+    try {
+        const res  = await fetch(`/tickets/${ticketId}/meeting/active`, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (data.success) {
+            activeMeeting = data.data;
+            updateMeetingButton();
+        }
+    } catch (_) { /* silent */ }
+}
+
+function updateMeetingButton() {
+    const btn   = document.getElementById('meetingBtn');
+    const label = document.getElementById('meetingBtnLabel');
+    if (!btn) return;
+
+    if (activeMeeting) {
+        btn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-all animate-pulse';
+        btn.setAttribute('onclick', 'openMeetingEndModal()');
+        if (label) label.textContent = 'End Meeting';
+        btn.querySelector('svg').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>';
+    } else {
+        btn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 border border-violet-300 text-xs font-semibold rounded-lg hover:bg-violet-200 transition-all';
+        btn.setAttribute('onclick', 'openMeetingStartModal()');
+        if (label) label.textContent = 'Meeting';
+        btn.querySelector('svg').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>';
+    }
+}
+
+function openMeetingModal() {
+    const modal = document.getElementById('meetingModal');
+    const card  = document.getElementById('meetingModalCard');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        card.classList.remove('scale-95', 'opacity-0');
+        card.classList.add('scale-100', 'opacity-100');
+    }));
+}
+
+function closeMeetingModal() {
+    const modal = document.getElementById('meetingModal');
+    const card  = document.getElementById('meetingModalCard');
+    if (!modal) return;
+    card.classList.remove('scale-100', 'opacity-100');
+    card.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 200);
+}
+
+function openMeetingStartModal() {
+    const topicInput = document.getElementById('meetingTopicInput');
+    const linkInput  = document.getElementById('meetingLinkInput');
+    if (topicInput) topicInput.value = '';
+    if (linkInput)  linkInput.value  = '';
+    document.getElementById('meetingPanelStart')?.classList.remove('hidden');
+    document.getElementById('meetingPanelEnd')?.classList.add('hidden');
+    openMeetingModal();
+}
+
+function openMeetingEndModal() {
+    const summaryInput = document.getElementById('meetingSummaryInput');
+    if (summaryInput) summaryInput.value = '';
+
+    // Show elapsed duration
+    if (activeMeeting?.started_at) {
+        const elapsed = Math.round((Date.now() - new Date(activeMeeting.started_at)) / 60000);
+        const durEl   = document.getElementById('meetingDurationLabel');
+        const durText = document.getElementById('meetingDurationText');
+        if (durEl && durText) {
+            durText.textContent = `Elapsed: ${formatMeetingDuration(elapsed)}`;
+            durEl.classList.remove('hidden');
+        }
+    }
+
+    document.getElementById('meetingPanelStart')?.classList.add('hidden');
+    document.getElementById('meetingPanelEnd')?.classList.remove('hidden');
+    openMeetingModal();
+}
+
+async function doStartMeeting() {
+    const topic       = document.getElementById('meetingTopicInput')?.value.trim() || '';
+    const meetingLink = document.getElementById('meetingLinkInput')?.value.trim() || '';
+    const btn         = document.getElementById('startMeetingConfirmBtn');
+    const icon        = document.getElementById('startMeetingIcon');
+    const spin        = document.getElementById('startMeetingSpinner');
+
+    if (btn) btn.disabled = true;
+    icon?.classList.add('hidden');
+    spin?.classList.remove('hidden');
+
+    try {
+        const res  = await fetch(`/tickets/${ticketId}/meeting/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ topic, meeting_link: meetingLink }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            activeMeeting = data.data;
+            updateMeetingButton();
+            closeMeetingModal();
+            await loadMessages();
+            showNotification('Meeting started. SLA clock paused.', 'success');
+        } else {
+            showNotification(data.message || 'Failed to start meeting.', 'error');
+        }
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        icon?.classList.remove('hidden');
+        spin?.classList.add('hidden');
+    }
+}
+
+async function doEndMeeting() {
+    const summary = document.getElementById('meetingSummaryInput')?.value.trim() || '';
+    const btn     = document.getElementById('endMeetingConfirmBtn');
+    const icon    = document.getElementById('endMeetingIcon');
+    const spin    = document.getElementById('endMeetingSpinner');
+
+    if (btn) btn.disabled = true;
+    icon?.classList.add('hidden');
+    spin?.classList.remove('hidden');
+
+    try {
+        const res  = await fetch(`/tickets/${ticketId}/meeting/end`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ summary }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            activeMeeting = null;
+            updateMeetingButton();
+            closeMeetingModal();
+            await loadMessages();
+            const dur = formatMeetingDuration(data.data?.duration_minutes ?? 0);
+            showNotification(`Meeting ended (${dur}). SLA clock resumed.`, 'success');
+        } else {
+            showNotification(data.message || 'Failed to end meeting.', 'error');
+        }
+    } catch (e) {
+        showNotification('Error: ' + e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        icon?.classList.remove('hidden');
+        spin?.classList.add('hidden');
+    }
+}
+
 // ==================== MESSAGE RENDERING ====================
 function createMessageBubble(msg) {
-    // Meeting message → special card (non-interactive)
-    // Detect via message_type field OR by parsing JSON content (_type: "meeting")
+    // Meeting messages (all formats: new JSON, EcoSystem plain-text, legacy parseMeetingData)
+    if (isMeetingMessage(msg)) {
+        const d = parseMeetingBody(msg) || {};
+        if (isMeetingStart(msg)) return createMeetingStartCard(msg, d);
+        if (isMeetingEnd(msg))   return createMeetingEndCard(msg, d);
+    }
+
+    // Legacy meeting format
     if (parseMeetingData(msg)) {
         return createMeetingCard(msg) ?? '';
     }
@@ -1224,24 +1732,24 @@ function renderSidebarTickets(tickets) {
     };
     const prioLabelMap = { 'Very High': 'V.High', 'High': 'High', 'Medium': 'Med', 'Low': 'Low' };
     const statusClsMap = {
-        'in process':         'sb-jstat-in-process',
-        'author action':      'sb-jstat-author-action',
-        'proposed solution':  'sb-jstat-proposed',
-        'closed':             'sb-jstat-closed',
-        'sent in to sap':     'sb-jstat-sent-sap',
-        'sent it to support': 'sb-jstat-sent-support',
-        'cancel':             'sb-jstat-cancel',
-        'initial':            'sb-jstat-initial',
+        'open':                    'sb-jstat-open',
+        'in process':              'sb-jstat-in-process',
+        'waiting on customer':     'sb-jstat-wait-customer',
+        'waiting on 3rd party':    'sb-jstat-wait-3rdparty',
+        'waiting to confirmation': 'sb-jstat-wait-confirm',
+        'hold':                    'sb-jstat-hold',
+        'cancelled':               'sb-jstat-cancelled',
+        'closed':                  'sb-jstat-closed',
     };
     const statusLabelMap = {
-        'in process':         'In Process',
-        'author action':      'Author Action',
-        'proposed solution':  'Proposed',
-        'closed':             'Closed',
-        'sent in to sap':     'SAP',
-        'sent it to support': 'Support',
-        'cancel':             'Cancelled',
-        'initial':            'Pending',
+        'open':                    'Open',
+        'in process':              'In Process',
+        'waiting on customer':     'Wait Customer',
+        'waiting on 3rd party':    'Wait 3rd Party',
+        'waiting to confirmation': 'Wait Confirm',
+        'hold':                    'Hold',
+        'cancelled':               'Cancelled',
+        'closed':                  'Closed',
     };
 
     list.innerHTML = tickets.map(t => {
@@ -1255,9 +1763,9 @@ function renderSidebarTickets(tickets) {
         const prioCls   = prioClsMap[prio] || 'sb-prio-medium';
         const prioKey   = prioLabelMap[prio] || prio;
 
-        const stat      = (t.jarvies_status || t.status || 'in process').toLowerCase();
+        const stat      = (t.status || 'open').toLowerCase();
         const sCls      = statusClsMap[stat] || 'sb-jstat-default';
-        const sLabel    = statusLabelMap[stat] || t.jarvies_status || stat;
+        const sLabel    = statusLabelMap[stat] || stat;
 
         const unreadDot = (!isActive && t.has_unread)
             ? `<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 self-center"></span>`
@@ -1287,8 +1795,7 @@ function filterSidebarTickets() {
     const filtered = allSidebarTickets.filter(t =>
         (t.ticket_number && t.ticket_number.toLowerCase().includes(term)) ||
         (t.description && t.description.toLowerCase().includes(term)) ||
-        (t.status && t.status.toLowerCase().includes(term)) ||
-        (t.jarvies_status && t.jarvies_status.toLowerCase().includes(term))
+        (t.status && t.status.toLowerCase().includes(term))
     );
     renderSidebarTickets(filtered);
 }
@@ -1537,6 +2044,70 @@ async function doCancelTicket() {
     }
 }
 
+// ==================== STATUS UPDATE (Admin) ====================
+
+const statusColors = {
+    'open':                    { bg: 'bg-sky-100',    text: 'text-sky-700',    border: 'border-sky-400',    ring: 'ring-sky-400',    dot: 'bg-sky-500 border-sky-500' },
+    'in process':              { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-400',   ring: 'ring-blue-400',   dot: 'bg-blue-500 border-blue-500' },
+    'waiting on customer':     { bg: 'bg-amber-100',  text: 'text-amber-700',  border: 'border-amber-400',  ring: 'ring-amber-400',  dot: 'bg-amber-500 border-amber-500' },
+    'waiting on 3rd party':    { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-400', ring: 'ring-indigo-400', dot: 'bg-indigo-500 border-indigo-500' },
+    'waiting to confirmation': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-400', ring: 'ring-purple-400', dot: 'bg-purple-500 border-purple-500' },
+    'hold':                    { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-400', ring: 'ring-orange-400', dot: 'bg-orange-500 border-orange-500' },
+    'cancelled':               { bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-400',    ring: 'ring-red-400',    dot: 'bg-red-500 border-red-500' },
+    'closed':                  { bg: 'bg-green-100',  text: 'text-green-700',  border: 'border-green-400',  ring: 'ring-green-400',  dot: 'bg-green-500 border-green-500' },
+};
+
+let _selectedStatus = '{{ $ticket->status ?? "open" }}';
+
+function selectStatus(val) {
+    _selectedStatus = val;
+    document.querySelectorAll('.status-radio-btn').forEach(btn => {
+        const s = btn.dataset.status;
+        const dot = btn.querySelector('.status-dot');
+        const c = statusColors[s] || {};
+        if (s === val) {
+            btn.className = `status-radio-btn w-full text-left px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${c.bg} ${c.text} ${c.border} ring-1 ${c.ring}`;
+            if (dot) dot.className = `w-3 h-3 rounded-full border-2 flex-shrink-0 status-dot ${c.dot}`;
+        } else {
+            btn.className = 'status-radio-btn w-full text-left px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50';
+            if (dot) dot.className = 'w-3 h-3 rounded-full border-2 flex-shrink-0 status-dot border-gray-300';
+        }
+    });
+}
+
+async function saveStatus() {
+    const btn     = document.getElementById('saveStatusBtn');
+    const icon    = document.getElementById('saveStatusIcon');
+    const spinner = document.getElementById('saveStatusSpinner');
+
+    btn.disabled = true;
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+
+    try {
+        const res = await fetch(`/tickets/${ticketId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ status: _selectedStatus }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            showNotification('Status berhasil diperbarui.', 'success');
+        } else {
+            showNotification(data.message || 'Gagal memperbarui status.', 'error');
+        }
+    } catch (e) {
+        showNotification('Terjadi kesalahan.', 'error');
+    } finally {
+        btn.disabled = false;
+        icon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    }
+}
 
 </script>
 @endsection

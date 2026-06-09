@@ -16,16 +16,18 @@
 @section('content')
 
 {{-- Stats Cards --}}
-<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-4 mb-6">
     @php
         $statCards = [
-            ['label' => 'Total',             'value' => $stats['total'],             'color' => 'gray-900'],
-            ['label' => 'Open',              'value' => $stats['open'],              'color' => 'blue-600'],
-            ['label' => 'In Process',        'value' => $stats['in_process'],        'color' => 'indigo-600'],
-            ['label' => 'Action Required',   'value' => $stats['author_action'],     'color' => 'amber-600'],
-            ['label' => 'Proposed Solution', 'value' => $stats['proposed_solution'], 'color' => 'teal-600'],
-            ['label' => 'Closed',            'value' => $stats['closed'],            'color' => 'green-600'],
-            ['label' => 'Pending Approval',  'value' => $stats['pending_approval'],  'color' => 'orange-500'],
+            ['label' => 'Total',            'value' => $stats['total'],                   'color' => 'gray-900'],
+            ['label' => 'Open',             'value' => $stats['open'],                    'color' => 'sky-600'],
+            ['label' => 'In Process',       'value' => $stats['in_process'],              'color' => 'blue-600'],
+            ['label' => 'Wait Customer',    'value' => $stats['waiting_on_customer'],     'color' => 'amber-600'],
+            ['label' => 'Wait 3rd Party',   'value' => $stats['waiting_on_3rd_party'],   'color' => 'indigo-600'],
+            ['label' => 'Wait Confirm',     'value' => $stats['waiting_to_confirmation'], 'color' => 'teal-600'],
+            ['label' => 'Hold',             'value' => $stats['hold'],                    'color' => 'orange-600'],
+            ['label' => 'Closed',           'value' => $stats['closed'],                  'color' => 'green-600'],
+            ['label' => 'Pending Approval', 'value' => $stats['pending_approval'],        'color' => 'orange-500'],
         ];
     @endphp
 
@@ -64,12 +66,16 @@
         <div class="space-y-3">
             @forelse($recentTickets as $ticket)
             @php
-                $statusColor = match($ticket->jarvies_status) {
-                    'closed'            => 'bg-green-100 text-green-700',
-                    'author action'     => 'bg-amber-100 text-amber-700',
-                    'proposed solution' => 'bg-teal-100 text-teal-700',
-                    'in process'        => 'bg-blue-100 text-blue-700',
-                    default             => 'bg-gray-100 text-gray-600',
+                $statusColor = match($ticket->status) {
+                    'closed'                  => 'bg-green-100 text-green-700',
+                    'cancelled'               => 'bg-red-100 text-red-700',
+                    'waiting on customer'     => 'bg-amber-100 text-amber-700',
+                    'waiting to confirmation' => 'bg-teal-100 text-teal-700',
+                    'waiting on 3rd party'    => 'bg-indigo-100 text-indigo-700',
+                    'in process'              => 'bg-blue-100 text-blue-700',
+                    'hold'                    => 'bg-orange-100 text-orange-700',
+                    'open'                    => 'bg-sky-100 text-sky-700',
+                    default                   => 'bg-gray-100 text-gray-600',
                 };
             @endphp
             <a href="{{ route('tickets.show', $ticket->ticket_id) }}"
@@ -77,7 +83,7 @@
                 <div class="flex items-start justify-between gap-2">
                     <p class="text-sm font-medium text-gray-800 truncate">{{ $ticket->description }}</p>
                     <span class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 {{ $statusColor }}">
-                        {{ ucfirst($ticket->jarvies_status ?? '-') }}
+                        {{ ucfirst($ticket->status ?? '-') }}
                     </span>
                 </div>
                 <div class="flex items-center justify-between mt-1.5">

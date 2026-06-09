@@ -542,9 +542,8 @@ class TicketController extends Controller
     private function formatTicketDetail(Ticket $t): array
     {
         return array_merge($this->formatTicket($t), [
-            'jarvies_status' => $t->jarvies_status,
-            'channel'        => $t->channel,
-            'wait_close'     => $t->wait_close,
+            'channel'    => $t->channel,
+            'wait_close' => $t->wait_close,
         ]);
     }
 }
