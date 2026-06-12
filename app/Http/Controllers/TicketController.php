@@ -459,6 +459,8 @@ class TicketController extends Controller
             $validated = $request->validate([
                 'description'     => 'required|string|max:5000',
                 'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
+                'ticket_type'    => 'nullable|string|max:100',
+                'scale'          => 'nullable|string|max:100',
                 'body'            => 'nullable|string',
                 'body_html'       => 'nullable|string',
                 'cc_emails'       => 'nullable|array|max:10',
@@ -656,6 +658,8 @@ class TicketController extends Controller
                 // Opsional
                 ['name' => 'sender_name',         'contents' => $senderName ?? ''],
                 ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
+                ['name' => 'ticket_type',         'contents' => $validated['ticket_type'] ?? ''],
+                ['name' => 'scale',               'contents' => $validated['scale'] ?? ''],
                 ['name' => 'channel',             'contents' => 'email'],
             ];
 

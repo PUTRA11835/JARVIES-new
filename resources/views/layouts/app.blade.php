@@ -603,96 +603,151 @@
         }
     });
 
-    /* ── Notification Bell ── */
-    var _bellNotifications = []; // [{ ticket_id, ticket_number, subject, updated_at, read, event_type }]
-    var _ticketStates = {};       // { ticket_id: { updated_at, status, last_message_at } }
-    var _bellInitialized = false;
+    /* ── Notification Bell (DB-backed) ── */
+    var _bellLastCount = 0;
+    var _bellAudio     = null;
+    var _csrfToken     = document.querySelector('meta[name="csrf-token"]') ?
+                         document.querySelector('meta[name="csrf-token"]').content : '';
 
     function _getNotifPrefs() {
         return _loadPrefs().notifications_enabled !== false;
     }
 
-    function _saveBellState() {
-        try { localStorage.setItem('jarvies_bell_notifs', JSON.stringify(_bellNotifications)); } catch(e) {}
-        try { localStorage.setItem('jarvies_ticket_states', JSON.stringify(_ticketStates)); } catch(e) {}
-    }
-
-    function _loadBellState() {
+    function _webAudioBeep() {
         try {
-            var n = localStorage.getItem('jarvies_bell_notifs');
-            if (n) _bellNotifications = JSON.parse(n);
-        } catch(e) {}
-        try {
-            var s = localStorage.getItem('jarvies_ticket_states');
-            if (s) _ticketStates = JSON.parse(s);
-        } catch(e) {}
+            var ctx  = new (window.AudioContext || window.webkitAudioContext)();
+            var osc  = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+        } catch(ex) {}
     }
 
-    function _updateBellBadge() {
-        var badge = document.getElementById('bellBadge');
-        if (!badge) return;
-        var unread = _bellNotifications.filter(function(n) { return !n.read; }).length;
-        if (unread > 0) {
-            badge.textContent = unread > 99 ? '99+' : unread;
-            badge.classList.remove('hidden');
-        } else {
-            badge.classList.add('hidden');
-        }
+    function _loadBellSound() {
+        fetch('/api/notification-sounds', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.data || !data.data.length) return;
+            var selectedId = data.selected_sound_id;
+            var sound = data.data.find(function(s) { return s.id === selectedId; })
+                     || data.data.find(function(s) { return s.is_default; });
+            if (sound) {
+                _bellAudio = new Audio(sound.url);
+                _bellAudio.volume = 0.6;
+                _bellAudio.onerror = function() { _bellAudio = null; }; // fallback to beep
+            }
+        })
+        .catch(function() {});
     }
 
-    function _renderBellList() {
-        var list = document.getElementById('bellNotifList');
-        if (!list) return;
-        if (_bellNotifications.length === 0) {
-            list.innerHTML =
-                '<div class="text-center py-10 text-gray-400 text-sm">' +
-                '<svg class="mx-auto w-10 h-10 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>' +
-                'No notifications</div>';
+    function _playBellSound() {
+        if (!_bellAudio) {
+            _webAudioBeep();
             return;
         }
-        var html = '';
-        var shown = _bellNotifications.slice(0, 8);
-        shown.forEach(function(n) {
-            var readClass = n.read ? 'read' : 'unread';
-            var timeAgo   = _timeAgo(n.updated_at);
-            var ticketUrl = '/tickets/' + n.ticket_id;
-            html +=
-                '<a href="' + ticketUrl + '" class="notif-item ' + readClass + '" onclick="markNotifRead(' + n.ticket_id + ')">' +
-                    '<span class="notif-dot mt-1 flex-shrink-0"></span>' +
-                    '<div class="flex-1 min-w-0">' +
-                        '<p class="text-sm font-semibold text-gray-800 truncate">' + _escHtml(n.subject || 'Ticket #' + n.ticket_number) + '</p>' +
-                        '<p class="text-xs text-gray-500 mt-0.5">' + _escHtml(_notifLabel(n.event_type)) + ' &bull; ' + timeAgo + '</p>' +
-                    '</div>' +
-                '</a>';
-        });
-        list.innerHTML = html;
+        var clone = _bellAudio.cloneNode();
+        clone.volume = 0.6;
+        clone.play().catch(function() { _webAudioBeep(); });
+    }
+
+    function _updateBellBadge(count) {
+        var badge = document.getElementById('bellBadge');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+        } else {
+            badge.classList.add('hidden');
+            badge.classList.remove('flex');
+        }
+    }
+
+    function pollUnreadCount() {
+        if (!_getNotifPrefs()) return;
+        fetch('/api/notifications/unread-count', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var count = data.count;
+            if (count > _bellLastCount) {
+                _playBellSound();
+                // Show toast for new notifications
+                var newCount = count - _bellLastCount;
+                showToast(
+                    newCount === 1 ? 'You have a new notification.' : 'You have ' + newCount + ' new notifications.',
+                    'info', 'New Notification'
+                );
+            }
+            _bellLastCount = count;
+            _updateBellBadge(count);
+        })
+        .catch(function() {});
+    }
+
+    function _notifLabel(type) {
+        switch (type) {
+            case 'ticket_reply':          return 'New reply from Helpdesk';
+            case 'ticket_status_changed': return 'Ticket status updated';
+            case 'ticket_closed':         return 'Ticket closed';
+            case 'ticket_assigned':       return 'Ticket assigned';
+            default:                      return 'Ticket updated';
+        }
     }
 
     function _escHtml(str) {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    function _notifLabel(eventType) {
-        switch (eventType) {
-            case 'validated':    return 'Ticket validated';
-            case 'rejected':     return 'Ticket rejected';
-            case 'new_reply':    return 'New reply from Helpdesk';
-            case 'closed':       return 'Ticket closed';
-            case 'reopened':     return 'Ticket reopened';
-            case 'hold':         return 'Ticket on hold';
-            case 'in_progress':  return 'Ticket in progress';
-            case 'cancelled':    return 'Ticket cancelled';
-            default:             return 'Ticket updated';
+    function _renderBellList(notifications) {
+        var list = document.getElementById('bellNotifList');
+        if (!list) return;
+        if (!notifications || notifications.length === 0) {
+            list.innerHTML =
+                '<div class="text-center py-10 text-gray-400 text-sm">' +
+                '<svg class="mx-auto w-10 h-10 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>' +
+                '</svg>No notifications</div>';
+            return;
         }
+        var html = '';
+        notifications.forEach(function(n) {
+            var readClass = n.is_read ? 'read' : 'unread';
+            var link      = n.link ? _escHtml(n.link) : '/tickets/' + n.ticket_id;
+            html +=
+                '<a href="' + link + '" class="notif-item ' + readClass + '" data-notif-id="' + n.id + '" onclick="_onNotifClick(this,event)">' +
+                    '<span class="notif-dot mt-1 flex-shrink-0"></span>' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<p class="text-sm font-semibold text-gray-800 truncate">' + _escHtml(n.preview || _notifLabel(n.type)) + '</p>' +
+                        '<p class="text-xs text-gray-500 mt-0.5">' + _escHtml(_notifLabel(n.type)) + ' &bull; ' + _escHtml(n.created_at || '') + '</p>' +
+                    '</div>' +
+                '</a>';
+        });
+        list.innerHTML = html;
     }
 
-    function _timeAgo(isoStr) {
-        if (!isoStr) return '';
-        var diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
-        if (diff < 60)   return 'just now';
-        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-        return Math.floor(diff/86400) + 'd ago';
+    function _onNotifClick(el, e) {
+        var id = el.getAttribute('data-notif-id');
+        if (!id) return;
+        // Fire-and-forget mark as read
+        fetch('/api/notifications/' + id + '/read', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-TOKEN': _csrfToken }
+        }).catch(function() {});
+        // Optimistic UI
+        el.classList.remove('unread');
+        el.classList.add('read');
+        if (_bellLastCount > 0) {
+            _bellLastCount--;
+            _updateBellBadge(_bellLastCount);
+        }
     }
 
     function toggleBellDropdown() {
@@ -700,136 +755,47 @@
         if (!bd) return;
         var willOpen = bd.classList.contains('hidden');
         bd.classList.toggle('hidden');
-        if (willOpen) {
-            _renderBellList();
-        }
-    }
+        if (!willOpen) return;
 
-    function markNotifRead(ticketId) {
-        _bellNotifications.forEach(function(n) {
-            if (n.ticket_id == ticketId) n.read = true;
+        var list = document.getElementById('bellNotifList');
+        if (list) list.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">Loading...</div>';
+
+        fetch('/api/notifications', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                _renderBellList(data.data);
+                _bellLastCount = data.unread_count;
+                _updateBellBadge(data.unread_count);
+            }
+        })
+        .catch(function() {
+            var list = document.getElementById('bellNotifList');
+            if (list) list.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">Failed to load.</div>';
         });
-        _saveBellState();
-        _updateBellBadge();
     }
 
     function markAllBellRead() {
-        _bellNotifications.forEach(function(n) { n.read = true; });
-        _saveBellState();
-        _updateBellBadge();
-        _renderBellList();
-    }
-
-    function _pollTickets() {
-        if (!_getNotifPrefs()) return;
-        fetch('/tickets/ajax/fetch', {
+        fetch('/api/notifications/read-all', {
+            method: 'PUT',
             credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: { 'X-CSRF-TOKEN': _csrfToken }
+        })
+        .then(function() {
+            _bellLastCount = 0;
+            _updateBellBadge(0);
+            return fetch('/api/notifications', { credentials: 'same-origin' });
         })
         .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.success || !Array.isArray(data.data)) return;
-            var tickets = data.data.filter(function(t) { return !t.is_staging && t.ticket_id; });
-
-            if (!_bellInitialized) {
-                // First load: populate states without triggering notifications
-                // Also migrate old string-format states to new object format
-                tickets.forEach(function(t) {
-                    _ticketStates[t.ticket_id] = {
-                        updated_at:      t.updated_at,
-                        status:          t.status,
-                        last_message_at: t.last_message_at,
-                    };
-                });
-                _bellInitialized = true;
-                _saveBellState();
-                _updateBellBadge();
-                return;
-            }
-
-            var hasNew = false;
-            tickets.forEach(function(t) {
-                var prev = _ticketStates[t.ticket_id];
-                var curr = t.updated_at;
-                if (prev === undefined) {
-                    // Brand new ticket — no notification (customer submitted it)
-                    _ticketStates[t.ticket_id] = {
-                        updated_at:      curr,
-                        status:          t.status,
-                        last_message_at: t.last_message_at,
-                    };
-                    return;
-                }
-                // Migrate old string-format state (from previous version)
-                if (typeof prev === 'string') {
-                    prev = { updated_at: prev, status: null, last_message_at: null };
-                    _ticketStates[t.ticket_id] = prev;
-                }
-                if (prev.updated_at !== curr) {
-                    // Determine event type from what changed
-                    var eventType = 'updated';
-                    if (t.last_message_at && t.last_message_at !== prev.last_message_at) {
-                        eventType = 'new_reply';
-                    } else if (t.status !== prev.status) {
-                        var st = t.status;
-                        if (st === 'closed')      eventType = 'closed';
-                        else if (st === 'hold')   eventType = 'hold';
-                        else if (st === 'in process') eventType = 'in_progress';
-                        else if (st === 'cancelled')  eventType = 'cancelled';
-                        else if (st === 'open')   eventType = 'reopened';
-                        else eventType = 'updated';
-                    }
-
-                    // Update stored state
-                    _ticketStates[t.ticket_id] = {
-                        updated_at:      curr,
-                        status:          t.status,
-                        last_message_at: t.last_message_at,
-                    };
-
-                    var ticketLabel = 'Ticket #' + (t.ticket_number || t.ticket_id);
-                    var existing = _bellNotifications.find(function(n) { return n.ticket_id == t.ticket_id; });
-                    var notifObj = {
-                        ticket_id:     t.ticket_id,
-                        ticket_number: t.ticket_number || t.ticket_id,
-                        subject:       t.subject || t.description || ticketLabel,
-                        updated_at:    curr,
-                        read:          false,
-                        event_type:    eventType,
-                    };
-                    if (existing) {
-                        Object.assign(existing, notifObj);
-                    } else {
-                        _bellNotifications.unshift(notifObj);
-                        showToast(
-                            ticketLabel + ': ' + _notifLabel(eventType),
-                            'info',
-                            'Ticket Notification'
-                        );
-                    }
-                    if (_bellNotifications.length > 20) _bellNotifications.pop();
-                    hasNew = true;
-                }
-            });
-
-            if (hasNew) {
-                _saveBellState();
-                _updateBellBadge();
-                // Re-render if dropdown is open
-                var bd = document.getElementById('bellDropdown');
-                if (bd && !bd.classList.contains('hidden')) _renderBellList();
-            }
-        })
-        .catch(function() {}); // Silently ignore network errors
+        .then(function(data) { if (data.success) _renderBellList(data.data); })
+        .catch(function() {});
     }
 
     // Initialize bell on page load
     document.addEventListener('DOMContentLoaded', function() {
-        _loadBellState();
-        _updateBellBadge();
-        // Start polling — first call initializes states
-        _pollTickets();
-        setInterval(_pollTickets, 30000);
+        _loadBellSound();
+        pollUnreadCount();
+        setInterval(pollUnreadCount, 30000);
     });
 </script>
 

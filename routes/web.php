@@ -5,6 +5,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerApiController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\JarviesNotificationController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\PasswordSetupController;
@@ -107,6 +108,19 @@ Route::middleware('jarvies.auth')->group(function () {
 
     // ==================== ATTACHMENTS (Graph proxy) ====================
     Route::get('/attachments/{id}', [AttachmentController::class, 'show'])->name('attachments.show')->whereNumber('id');
+
+    // ==================== NOTIFICATIONS ====================
+    Route::prefix('api/notifications')->name('notifications.')->group(function () {
+        Route::get('/',            [JarviesNotificationController::class, 'index'])->name('index');
+        Route::get('/unread-count',[JarviesNotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::put('/read-all',    [JarviesNotificationController::class, 'markAllRead'])->name('read-all');
+        Route::put('/{id}/read',   [JarviesNotificationController::class, 'markRead'])->name('read')->whereNumber('id');
+        Route::delete('/bulk-delete', [JarviesNotificationController::class, 'bulkDelete'])->name('bulk-delete');
+    });
+    Route::prefix('api/notification-sounds')->name('notification-sounds.')->group(function () {
+        Route::get('/',            [JarviesNotificationController::class, 'sounds'])->name('index');
+        Route::put('/preference',  [JarviesNotificationController::class, 'saveSound'])->name('preference');
+    });
 
     // ==================== CUSTOMER PROFILE API (proxy → EcoSystem) ====================
     // Mirrors EcoSystem's /api/customers/{id}/... routes for profile section tabs.

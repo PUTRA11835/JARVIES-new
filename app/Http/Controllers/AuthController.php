@@ -354,6 +354,7 @@ class AuthController extends Controller
 
                 $userData = [
                     'id'                   => $customer->customer_id,
+                    'auth_user_id'         => $authUser->id,
                     'type'                 => 'customer',
                     'customer_code'        => $customer->customer_code,
                     'contact_id'           => $contact->contact_id ?? null,

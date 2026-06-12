@@ -77,6 +77,8 @@ class StagingTicketService
             'module'             => $data['module'] ?? null,
             'client'             => $data['client'] ?? null,
             'ticket_priority'    => $data['ticket_priority'] ?? 'Medium',
+            'ticket_type'        => $data['ticket_type'] ?? null,
+            'scale'              => $data['scale'] ?? null,
             'status'             => 'unvalidated',
             'channel'            => 'web',
             'submitted_by_email' => $customerEmail,

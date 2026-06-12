@@ -34,27 +34,6 @@
     $userEmail       = session('user.email', '');
 @endphp
 
-{{-- My / All Tickets Toggle — visible only for customer admin --}}
-@if($isCustomerAdmin)
-<div class="mb-4 flex items-center gap-2">
-    <button id="btnMyTickets" onclick="setTicketScope('mine')"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-        </svg>
-        My Tickets
-    </button>
-    <button id="btnAllTickets" onclick="setTicketScope('all')"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        All Tickets
-    </button>
-    <span id="ticketScopeLabel" class="text-xs text-gray-400 ml-1">Showing your tickets</span>
-</div>
-@endif
-
 {{-- Status Filter Cards --}}
 <div class="mb-4">
     <button onclick="toggleSection('statsSection', 'statsChevron')"
@@ -504,32 +483,6 @@ function getScopedTickets() {
     return allTickets.filter(t =>
         (t.submitted_by_email || '').toLowerCase() === USER_EMAIL.toLowerCase()
     );
-}
-
-function setTicketScope(scope) {
-    ticketScope = scope;
-    currentPage = 1;
-
-    const btnMine = document.getElementById('btnMyTickets');
-    const btnAll  = document.getElementById('btnAllTickets');
-    const lbl     = document.getElementById('ticketScopeLabel');
-    if (btnMine && btnAll) {
-        if (scope === 'mine') {
-            btnMine.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800';
-            btnAll.className  = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
-            if (lbl) lbl.textContent = 'Showing your tickets';
-        } else {
-            btnAll.className  = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-red-800 text-white border-red-800';
-            btnMine.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
-            if (lbl) lbl.textContent = 'Showing all company tickets';
-        }
-    }
-
-    // Re-apply current status filter on the new scope
-    const base = getScopedTickets();
-    filteredTickets = currentFilter === 'all' ? base : base.filter(t => t.status === currentFilter);
-    updateStats();
-    renderTickets();
 }
 
 // ==================== FILTERS ====================

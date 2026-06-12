@@ -211,13 +211,24 @@
 
                 <hr class="border-gray-100">
 
+                <!-- Notification Sound -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-700 mb-0.5">Notification Sound</h3>
+                    <p class="text-xs text-gray-400 mb-3">Choose the sound played when a new notification arrives</p>
+
+                    <div id="soundList" class="space-y-2">
+                        <p class="text-xs text-gray-400">Loading sounds...</p>
+                    </div>
+                </div>
+
+                <hr class="border-gray-100">
+
                 <!-- Info box -->
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
                     <div class="font-semibold mb-1">How notifications work</div>
                     <p class="text-xs text-blue-600 leading-relaxed">
-                        JARVIES checks your tickets every 30 seconds. When an EcoSystem agent replies to a ticket
-                        or changes its status, you will receive an in-app notification and the bell icon will show
-                        the number of unread updates.
+                        JARVIES checks for new notifications every 30 seconds. When a helpdesk agent replies to
+                        your ticket or changes its status, you will hear the selected sound and see the bell badge.
                     </p>
                 </div>
 
@@ -225,7 +236,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-sm font-semibold text-gray-700">Clear Notification History</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">Remove all stored notification records</p>
+                        <p class="text-xs text-gray-400 mt-0.5">Mark all notifications as read and clear the bell badge</p>
                     </div>
                     <button onclick="clearNotificationHistory()"
                             class="px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-all">
@@ -320,6 +331,7 @@ function switchTab(name) {
     if (panel) panel.classList.add('active');
     var btn = document.querySelector('[data-tab="' + name + '"]');
     if (btn) { btn.classList.add('active'); btn.classList.remove('inactive'); }
+    if (name === 'notifications') loadSoundSettings();
 }
 
 // ── Theme selector ──
@@ -424,13 +436,136 @@ function resetSettings() {
     });
 }
 
+// ── Notification Sound Picker ──
+var _selectedSoundId = null;
+var _csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+function loadSoundSettings() {
+    fetch('/api/notification-sounds', { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) return;
+        _selectedSoundId = data.selected_sound_id;
+        renderSoundList(data.data, data.selected_sound_id);
+    })
+    .catch(function() {
+        var el = document.getElementById('soundList');
+        if (el) el.innerHTML = '<p class="text-xs text-red-500">Failed to load sounds.</p>';
+    });
+}
+
+function renderSoundList(sounds, selectedId) {
+    var el = document.getElementById('soundList');
+    if (!el) return;
+    var html = '';
+    sounds.forEach(function(s) {
+        var isSelected = s.id === selectedId;
+        html +=
+            '<div class="flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer ' +
+            (isSelected ? 'border-red-800 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50') +
+            '" onclick="selectSound(' + s.id + ', \'' + s.url + '\')" id="sound-row-' + s.id + '">' +
+                '<div class="flex items-center gap-2.5">' +
+                    '<div class="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ' +
+                    (isSelected ? 'border-red-800' : 'border-gray-300') + '">' +
+                        (isSelected ? '<div class="w-2 h-2 rounded-full bg-red-800"></div>' : '') +
+                    '</div>' +
+                    '<span class="text-sm font-medium ' + (isSelected ? 'text-red-800' : 'text-gray-700') + '">' +
+                        s.name + (s.is_default ? ' <span class="text-xs font-normal text-gray-400">(default)</span>' : '') +
+                    '</span>' +
+                '</div>' +
+                '<button type="button" onclick="previewSound(event, \'' + s.url + '\')" ' +
+                        'class="flex items-center gap-1 text-xs text-gray-500 hover:text-red-800 transition-colors px-2 py-1 rounded-lg hover:bg-red-50">' +
+                    '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>' +
+                    '</svg>' +
+                    'Preview' +
+                '</button>' +
+            '</div>';
+    });
+    el.innerHTML = html;
+}
+
+function selectSound(soundId, soundUrl) {
+    if (_selectedSoundId === soundId) return;
+    _selectedSoundId = soundId;
+
+    // Update UI immediately
+    document.querySelectorAll('[id^="sound-row-"]').forEach(function(row) {
+        var rowId = parseInt(row.id.replace('sound-row-', ''));
+        var isSelected = rowId === soundId;
+        row.className = 'flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer ' +
+            (isSelected ? 'border-red-800 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50');
+        var dot = row.querySelector('.rounded-full.border-2');
+        if (dot) {
+            dot.className = 'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ' +
+                (isSelected ? 'border-red-800' : 'border-gray-300');
+            dot.innerHTML = isSelected ? '<div class="w-2 h-2 rounded-full bg-red-800"></div>' : '';
+        }
+        var label = row.querySelector('span.text-sm');
+        if (label) label.className = 'text-sm font-medium ' + (isSelected ? 'text-red-800' : 'text-gray-700');
+    });
+
+    // Save to server
+    fetch('/api/notification-sounds/preference', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+        body: JSON.stringify({ sound_id: soundId }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('Notification sound updated.', 'success', 'Saved');
+        }
+    })
+    .catch(function() {
+        showToast('Failed to save sound preference.', 'error', 'Error');
+    });
+}
+
+function _webAudioBeep(freq, dur) {
+    try {
+        var ctx  = new (window.AudioContext || window.webkitAudioContext)();
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq || 880;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (dur || 0.3));
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + (dur || 0.3));
+    } catch(ex) {}
+}
+
+var _previewCache = {};
+function previewSound(e, url) {
+    e.stopPropagation();
+    if (!_previewCache[url]) {
+        _previewCache[url] = new Audio(url);
+    }
+    var audio = _previewCache[url];
+    audio.currentTime = 0;
+    audio.play().catch(function() { _webAudioBeep(); });
+}
+
 // ── Clear notification history ──
 function clearNotificationHistory() {
-    localStorage.removeItem('jarvies_bell_notifs');
-    localStorage.removeItem('jarvies_ticket_states');
-    var badge = document.getElementById('bellBadge');
-    if (badge) badge.classList.add('hidden');
-    showToast('Notification history cleared.', 'success', 'Done');
+    fetch('/api/notifications/read-all', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-TOKEN': _csrfToken },
+    })
+    .then(function() {
+        var badge = document.getElementById('bellBadge');
+        if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
+        showToast('All notifications marked as read.', 'success', 'Done');
+    })
+    .catch(function() {
+        showToast('Failed to clear notifications.', 'error', 'Error');
+    });
 }
 
 // ── Init: apply current prefs to the form ──

@@ -155,29 +155,40 @@
                 </div>
             </div>
 
-            {{-- Priority --}}
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
-                <div class="flex items-center gap-2 flex-wrap">
-                    @foreach(['Very High', 'High', 'Medium', 'Low'] as $p)
-                    @php
-                        $colors = [
-                            'Very High' => 'peer-checked:bg-red-100 peer-checked:border-red-500 peer-checked:text-red-700',
-                            'High'      => 'peer-checked:bg-orange-100 peer-checked:border-orange-400 peer-checked:text-orange-700',
-                            'Medium'    => 'peer-checked:bg-blue-100 peer-checked:border-blue-400 peer-checked:text-blue-700',
-                            'Low'       => 'peer-checked:bg-green-100 peer-checked:border-green-400 peer-checked:text-green-700',
-                        ];
-                    @endphp
-                    <label class="relative cursor-pointer">
-                        <input type="radio" name="ticket_priority" value="{{ $p }}"
-                            class="peer sr-only"
-                            {{ $p === 'Medium' ? 'checked' : '' }}>
-                        <span class="inline-flex items-center px-4 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-500 bg-white transition-all
-                            {{ $colors[$p] }} hover:bg-gray-50">
-                            {{ $p }}
-                        </span>
-                    </label>
-                    @endforeach
+            {{-- Ticket Type, Scale & Priority --}}
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label for="ticket_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Ticket Type</label>
+                    <select id="ticket_type" name="ticket_type"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        <option value="">— Select type —</option>
+                        <option value="Bug Report">Bug Report</option>
+                        <option value="Feature Request">Feature Request</option>
+                        <option value="Question">Question</option>
+                        <option value="Enhancement">Enhancement</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="scale" class="block text-sm font-semibold text-gray-700 mb-1.5">Scale</label>
+                    <select id="scale" name="scale"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        <option value="">— Select scale —</option>
+                        <option value="Minor">Minor</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="Major">Major</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="ticket_priority" class="block text-sm font-semibold text-gray-700 mb-1.5">Priority</label>
+                    <select id="ticket_priority" name="ticket_priority"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                        <option value="Very High">Very High</option>
+                        <option value="High">High</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
                 </div>
             </div>
 
@@ -630,7 +641,7 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
     if (!validated) return;
 
     const { subject, bodyText, bodyHtml, ccEmails } = validated;
-    const priority = document.querySelector('input[name="ticket_priority"]:checked')?.value || 'Medium';
+    const priority = document.getElementById('ticket_priority')?.value || 'Medium';
 
     setLoading(true);
 
@@ -641,6 +652,8 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
         fd.append('body_html',       bodyHtml);
         fd.append('body',            bodyText);
         fd.append('ticket_priority', priority);
+        fd.append('ticket_type',     document.getElementById('ticket_type')?.value || '');
+        fd.append('scale',           document.getElementById('scale')?.value || '');
         fd.append('name',   document.getElementById('name').value.trim());
         fd.append('no_hp',  document.getElementById('no_hp').value.trim());
         fd.append('module', document.getElementById('module').value.trim());
