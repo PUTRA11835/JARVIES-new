@@ -8,9 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('auth_users', function (Blueprint $table) {
-            $table->boolean('can_view_all_tickets')->default(true)->after('is_active');
-        });
+        if (!Schema::hasColumn('auth_users', 'can_view_all_tickets')) {
+            Schema::table('auth_users', function (Blueprint $table) {
+                $table->boolean('can_view_all_tickets')->default(true)->after('is_active');
+            });
+        }
     }
 
     public function down(): void
