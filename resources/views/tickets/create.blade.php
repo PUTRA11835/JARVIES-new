@@ -162,11 +162,10 @@
                     <select id="ticket_type" name="ticket_type"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
                         <option value="">— Select type —</option>
-                        <option value="Bug Report">Bug Report</option>
-                        <option value="Feature Request">Feature Request</option>
-                        <option value="Question">Question</option>
-                        <option value="Enhancement">Enhancement</option>
-                        <option value="Other">Other</option>
+                        <option value="Incident">Incident</option>
+                        <option value="Service Request">Service Request</option>
+                        <option value="Change Request">Change Request</option>
+                        <option value="Consult">Consult</option>
                     </select>
                 </div>
                 <div>
@@ -174,10 +173,9 @@
                     <select id="scale" name="scale"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
                         <option value="">— Select scale —</option>
-                        <option value="Minor">Minor</option>
-                        <option value="Moderate">Moderate</option>
-                        <option value="Major">Major</option>
-                        <option value="Critical">Critical</option>
+                        <option value="Simple">Simple</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Complex">Complex</option>
                     </select>
                 </div>
                 <div>
