@@ -96,6 +96,7 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'description'     => 'required|string',
             'ticket_priority' => 'nullable|in:Low,Medium,High',
+            'ticket_type'     => 'nullable|in:Incident,Service Request,Change Request,Consult',
             'body'            => 'nullable|string',
         ]);
 
@@ -159,6 +160,7 @@ class TicketController extends Controller
         $validator = Validator::make($request->all(), [
             'description'     => 'required|string|max:5000',
             'ticket_priority' => 'nullable|in:Very High,High,Medium,Low',
+            'ticket_type'     => 'nullable|in:Incident,Service Request,Change Request,Consult',
             'body'            => 'nullable|string',
             'body_html'       => 'nullable|string',
             'cc_emails'       => 'nullable|array|max:10',
@@ -284,6 +286,7 @@ class TicketController extends Controller
             ['name' => 'internet_message_id', 'contents' => $internetMsgId],
             ['name' => 'sender_name',         'contents' => $senderName ?? ''],
             ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
+            ['name' => 'ticket_type',         'contents' => $validated['ticket_type'] ?? ''],
             ['name' => 'channel',             'contents' => 'email'],
         ];
 
