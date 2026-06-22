@@ -144,30 +144,34 @@
 #ccRow { border-bottom: 1px solid #e5e7eb; }
 
 /* Meeting card — start (purple) */
-.meeting-card-start { background:#faf5ff; border:1px solid #d8b4fe; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
+.meeting-card-start { background:linear-gradient(140deg,#faf5ff 0%,#f3e8ff 100%); border:1px solid #c4b5fd; border-radius:16px; padding:16px 18px; max-width:420px; text-align:left; box-shadow:0 4px 16px rgba(109,40,217,.1); }
 .meeting-card-start .mc-header strong { color:#6b21a8; }
-.meeting-card-start .mc-divider { border-top-color:#d8b4fe; }
-.meeting-card-start .mc-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#6b21a8; background:#ede9fe; border:1px solid #c4b5fd; border-radius:9999px; padding:2px 8px; }
+.meeting-card-start .mc-divider { border-top-color:#ddd6fe; }
+.meeting-card-start .mc-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:#5b21b6; background:#ede9fe; border:1px solid #c4b5fd; border-radius:9999px; padding:3px 10px; }
+.meeting-card-start .mc-time-block { background:#ede9fe; border:1px solid #ddd6fe; border-radius:10px; padding:8px 10px; margin-bottom:10px; display:flex; flex-direction:column; gap:4px; }
 
 /* Meeting card — end (green) */
-.meeting-card-end { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
+.meeting-card-end { background:linear-gradient(140deg,#f0fdf4 0%,#dcfce7 100%); border:1px solid #a7f3d0; border-radius:16px; padding:16px 18px; max-width:420px; text-align:left; box-shadow:0 4px 16px rgba(22,163,74,.08); }
 .meeting-card-end .mc-header strong { color:#166534; }
-.meeting-card-end .mc-divider { border-top-color:#bbf7d0; }
-.meeting-card-end .mc-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #bbf7d0; border-radius:9999px; padding:2px 8px; }
+.meeting-card-end .mc-divider { border-top-color:#a7f3d0; }
+.meeting-card-end .mc-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:#166534; background:#dcfce7; border:1px solid #bbf7d0; border-radius:9999px; padding:3px 10px; }
 
 /* Shared meeting card internals */
-.mc-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.mc-header strong { font-size:14px; font-weight:700; }
+.mc-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.mc-header strong { font-size:14px; font-weight:700; letter-spacing:.01em; }
 .mc-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:6px; font-size:12px; color:#374151; }
 .mc-row span:first-child { flex-shrink:0; }
-.mc-divider { border:none; border-top:1px solid; margin:10px 0; }
-.mc-join-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:9px; font-size:12px; font-weight:700; text-decoration:none; margin-top:4px; transition:all .15s; cursor:pointer; border:none; }
-.mc-join-btn:hover { transform:translateY(-1px); filter:brightness(1.08); box-shadow:0 4px 12px rgba(0,0,0,.18); }
+.mc-time-row { display:flex; align-items:center; gap:6px; font-size:12px; color:#5b21b6; }
+.mc-time-row .mc-time-label { font-weight:600; min-width:38px; font-size:11px; color:#7c3aed; text-transform:uppercase; letter-spacing:.05em; }
+.mc-time-row .mc-time-val { color:#3b0764; font-weight:500; }
+.mc-divider { border:none; border-top:1px solid; margin:12px 0; }
+.mc-join-btn { display:inline-flex; align-items:center; gap:7px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; margin-top:6px; transition:all .18s; cursor:pointer; border:none; width:100%; justify-content:center; }
+.mc-join-btn:hover { transform:translateY(-1px); filter:brightness(1.06); box-shadow:0 6px 16px rgba(0,0,0,.2); }
 .mc-join-btn.zoom   { background:#2D8CFF; color:#fff; box-shadow:0 2px 8px rgba(45,140,255,.35); }
 .mc-join-btn.gmeet  { background:#1a73e8; color:#fff; box-shadow:0 2px 8px rgba(26,115,232,.35); }
 .mc-join-btn.teams  { background:#464EB8; color:#fff; box-shadow:0 2px 8px rgba(70,78,184,.35); }
 .mc-join-btn.webex  { background:#00B4D8; color:#fff; box-shadow:0 2px 8px rgba(0,180,216,.35); }
-.mc-join-btn.generic { background:linear-gradient(135deg,#6d28d9,#7c3aed); color:#fff; box-shadow:0 2px 8px rgba(109,40,217,.35); }
+.mc-join-btn.generic { background:linear-gradient(135deg,#6d28d9,#7c3aed); color:#fff; box-shadow:0 3px 12px rgba(109,40,217,.4); }
 
 /* Legacy meeting card (backward compat) */
 .meeting-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 16px; max-width:380px; text-align:left; }
@@ -1116,18 +1120,40 @@ function parseMeetingPlatform(url) {
     return { cls: 'generic', label: 'Join Meeting', icon: '🔗' };
 }
 
-// Parses EcoSystem plain-text "topic\nLink: url" format
+// Parses EcoSystem plain-text format — handles both structured and line-by-line
 function parseMeetingStartText(rawText) {
-    if (!rawText) return { topic: '', link: null };
-    const lines = rawText.split('\n');
-    let link = null;
+    if (!rawText) return { topic: '', link: null, startTime: null, endTime: null };
+
+        // Multi-line EcoSystem format — parse each line
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l);
+    let startTime = null, endTime = null, link = null;
     const topicLines = [];
+
     for (const line of lines) {
-        const m = line.match(/^Link:\s*(.+)$/i);
-        if (m) { link = m[1].trim(); }
-        else   { topicLines.push(line); }
+        const startMatch = line.match(/^MeetingStart:\s*(\S+)$/i);
+        const endMatch   = line.match(/^MeetingEnd:\s*(\S+)$/i);
+        const linkMatch  = line.match(/^Link:\s*(.+)$/i);
+        const urlOnly    = !startMatch && !endMatch && !linkMatch && /^https?:\/\//.test(line);
+        if (startMatch)    { startTime = startMatch[1]; }
+        else if (endMatch) { endTime = endMatch[1]; }
+        else if (linkMatch){ link = linkMatch[1].trim(); }
+        else if (urlOnly)  {
+            // De-duplicate doubled URLs (e.g. "http://...http://...")
+            let url = line;
+            const dup = url.match(/^(https?:\/\/.+?)(https?:\/\/.+)$/);
+            if (dup) url = dup[1];
+            if (!link) link = url;
+        }
+        else { topicLines.push(line); }
     }
-    return { topic: topicLines.join('\n').trim(), link };
+    return { topic: topicLines.join('\n').trim(), link, startTime, endTime };
+}
+
+function formatMeetingTime(iso) {
+    try {
+        const d = new Date(iso);
+        return d.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+    } catch(_) { return iso; }
 }
 
 // Builds the join button HTML for a meeting link
@@ -1151,23 +1177,41 @@ function createMeetingStartCard(msg, d) {
     const timeStr    = formatFullDate(new Date(msg.created_at));
 
     // Resolve topic + link from either JSON body (new) or plain-text (EcoSystem)
-    let topicText, meetingLink;
+    let topicText, meetingLink, startTime = null, endTime = null;
     if (d && (d.topic || d.meeting_link)) {
         topicText   = d.topic   || '';
         meetingLink = d.meeting_link || null;
     } else {
         const parsed = parseMeetingStartText(msg.message || '');
-        topicText   = parsed.topic;
-        meetingLink = parsed.link;
+        topicText    = parsed.topic;
+        meetingLink  = parsed.link;
+        startTime    = parsed.startTime;
+        endTime      = parsed.endTime;
     }
 
     const topicHtml = topicText
         ? `<div class="mc-row"><svg class="w-3.5 h-3.5 text-violet-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>${escHtml(topicText)}</span></div>`
         : '';
+
+    const timeBlockHtml = (startTime || endTime)
+        ? `<div class="mc-time-block">
+            ${startTime ? `<div class="mc-time-row">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="mc-time-label">Mulai</span>
+                <span class="mc-time-val">${escHtml(formatMeetingTime(startTime))}</span>
+            </div>` : ''}
+            ${endTime ? `<div class="mc-time-row">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="mc-time-label">Selesai</span>
+                <span class="mc-time-val">${escHtml(formatMeetingTime(endTime))}</span>
+            </div>` : ''}
+          </div>`
+        : '';
+
     const joinBtnHtml = buildJoinBtn(meetingLink);
 
     return `<div class="flex gap-3 my-1">
-        <div class="w-8 h-8 bg-violet-400 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
+        <div class="w-8 h-8 bg-violet-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">${initials}</div>
         <div>
             <div class="flex items-center gap-2 mb-1">
                 <span class="text-sm font-semibold text-gray-900">${senderName}</span>
@@ -1179,6 +1223,7 @@ function createMeetingStartCard(msg, d) {
                     <strong>Meeting Started</strong>
                 </div>
                 ${topicHtml}
+                ${timeBlockHtml}
                 ${joinBtnHtml}
                 <hr class="mc-divider">
                 <div><span class="mc-badge">
