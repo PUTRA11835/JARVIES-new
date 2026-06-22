@@ -58,6 +58,10 @@ return [
 
     'ecosystem' => [
         'url'     => env('ECOSYSTEM_API_URL', ''),
+        // Public base URL of EcoSystem WITHOUT /api (e.g. https://ecosystem.domain.com).
+        // Used to build password setup/reset links that land on EcoSystem's canonical
+        // /change-password page — the same page reached from the Grant Access email.
+        'base_url' => env('ECOSYSTEM_BASE_URL', ''),
         'api_key' => env('ECOSYSTEM_API_KEY', ''),
         'timeout' => env('ECOSYSTEM_API_TIMEOUT', 30),
         'retry' => [

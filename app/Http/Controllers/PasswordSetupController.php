@@ -230,7 +230,14 @@ class PasswordSetupController extends Controller
         }
 
         try {
-            $link       = route('password-setup.change', ['token' => $token]);
+            // Build the password link against EcoSystem's canonical /change-password page
+            // (same page the Grant Access email uses) when its public base URL is configured.
+            // The token lives in the shared auth_users table, so EcoSystem validates it.
+            // Falls back to Jarvies' own page if ECOSYSTEM_BASE_URL is not set.
+            $ecoBase = rtrim(config('services.ecosystem.base_url', ''), '/');
+            $link    = $ecoBase !== ''
+                ? $ecoBase . '/change-password?token=' . $token
+                : route('password-setup.change', ['token' => $token]);
             $appName    = config('app.name', 'ECoSystem');
             $senderName = env('MS_SENDER_NAME', $appName);
             $appUrl     = rtrim(config('app.url', ''), '/');

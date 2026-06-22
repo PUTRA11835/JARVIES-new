@@ -7,11 +7,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Concerns\ProvisionsContactLogin;
 use App\Http\Controllers\PasswordSetupController;
 use Exception;
 
 class AuthController extends Controller
 {
+    use ProvisionsContactLogin;
+
     /**
      * Show login page (untuk web)
      */
@@ -135,19 +138,27 @@ class AuthController extends Controller
                 'auth_user_id' => $authUser->id ?? null,
             ]);
 
+            // SELF-SERVE: no login account yet. Check customer master data — if this
+            // email belongs to a registered customer contact, provision the account on
+            // the fly so the contact can set their password (same outcome as an admin
+            // clicking "Grant Access"). If it is not a known contact, reject generically.
             if (!$authUser) {
-                Log::channel('daily')->warning('=== USER NOT FOUND IN AUTH_USERS ===', [
-                    'request_id' => $requestId,
-                    'email_searched' => $email,
-                    'ip_address' => $request->ip(),
-                    'timestamp' => now()->toDateTimeString()
-                ]);
+                $authUser = $this->provisionContactLogin($email, $requestId);
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid email or password.',
-                    'request_id' => $requestId
-                ], 401);
+                if (!$authUser) {
+                    Log::channel('daily')->warning('=== USER NOT FOUND IN AUTH_USERS OR CUSTOMER CONTACTS ===', [
+                        'request_id' => $requestId,
+                        'email_searched' => $email,
+                        'ip_address' => $request->ip(),
+                        'timestamp' => now()->toDateTimeString()
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid email or password.',
+                        'request_id' => $requestId
+                    ], 401);
+                }
             }
 
             // Tentukan tipe user dari FK
