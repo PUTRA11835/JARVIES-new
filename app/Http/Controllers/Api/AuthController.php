@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ProvisionsContactLogin;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\PasswordSetupController;
 use Illuminate\Http\Request;
@@ -18,6 +19,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class AuthController extends Controller
 {
+    use ProvisionsContactLogin;
+
     /**
      * POST /api/auth/login
      */
@@ -49,7 +52,14 @@ class AuthController extends Controller
                 ->where('is_active', true)
                 ->first();
 
-            if (!$authUser || !Hash::check($request->password, $authUser->password)) {
+            // SELF-SERVE: no login account yet. Provision one from customer master data
+            // if this email belongs to a registered customer contact (same outcome as an
+            // admin clicking "Grant Access" in EcoSystem). Otherwise reject generically.
+            if (!$authUser) {
+                $authUser = $this->provisionContactLogin($identifier);
+            }
+
+            if (!$authUser) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid email or password.',
@@ -64,8 +74,16 @@ class AuthController extends Controller
                 ], 403);
             }
 
-            // User baru belum set password
+            // User belum set password — kirim email setup DULU (sebelum cek password,
+            // karena akun yang belum di-setup hanya punya password acak)
             if (!$authUser->is_already_cp) {
+                if (empty($authUser->email)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Your account does not have a registered email. Please contact the administrator.',
+                    ], 403);
+                }
+
                 PasswordSetupController::generateAndSendToken($authUser);
 
                 [$local, $domain] = explode('@', $authUser->email, 2);
@@ -79,6 +97,14 @@ class AuthController extends Controller
                     'message'                 => 'Please check your email to set your password first.',
                     'email'                   => $maskedEmail,
                 ], 403);
+            }
+
+            // Akun sudah set password — verifikasi password
+            if (!Hash::check($request->password, $authUser->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid email or password.',
+                ], 401);
             }
 
             // Ambil data customer
