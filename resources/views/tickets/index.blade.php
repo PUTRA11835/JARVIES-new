@@ -489,7 +489,7 @@ function createTicketRow(ticket) {
             ${dot}<span class="text-xs ${timeColor}">${lastUpdateStr}</span>
         </td>
         <td class="px-3 py-2.5 whitespace-nowrap sticky bg-white border-r border-gray-100" style="left:110px;">
-            <span class="font-mono text-xs font-semibold ${numColor}">${ticket.ticket_number || (isStaging ? '(pending)' : '—')}</span>
+            <span class="font-mono text-xs font-semibold ${numColor}">${ticket.ticket_number || (isStaging ? '(initial)' : '—')}</span>
         </td>
         <td class="px-3 py-2.5 text-sm text-gray-700" style="min-width:280px;max-width:360px;">
             <span class="block truncate" title="${escapeHtml(ticket.description || '')}">${escapeHtml(ticket.description || '—')}</span>
