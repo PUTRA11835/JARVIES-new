@@ -85,7 +85,7 @@ class AuthController extends Controller
 
             // Validasi input
             $validator = Validator::make($request->all(), [
-                'email' => 'required|string',
+                'email' => 'required|email',
                 'password' => 'required|string|min:6',
                 'remember' => 'nullable|boolean',
             ]);
@@ -122,13 +122,9 @@ class AuthController extends Controller
                 'search_email' => $email
             ]);
 
-            // Cek auth_users: email, username (ECI / customer_code), atau phone
+            // Cek auth_users: hanya berdasarkan email
             $authUser = DB::table('auth_users')
-                ->where(function($query) use ($email) {
-                    $query->where('email', $email)
-                          ->orWhere('username', $email)
-                          ->orWhere('phone', $email);
-                })
+                ->where('email', $email)
                 ->where('is_active', true)
                 ->first();
 

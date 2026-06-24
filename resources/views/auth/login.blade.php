@@ -187,7 +187,7 @@
                         <!-- Identifier Field -->
                         <div>
                             <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
-                                Email / ECI / Phone
+                                Email
                             </label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -196,15 +196,15 @@
                                     </svg>
                                 </div>
                                 <input
-                                    type="text"
+                                    type="email"
                                     id="email"
                                     name="email"
                                     value="{{ old('email') }}"
-                                    placeholder="Enter your identification"
+                                    placeholder="Enter your email address"
                                     class="input-field w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl text-sm focus:outline-none transition-all bg-white"
                                     required
                                     autofocus
-                                    autocomplete="username"
+                                    autocomplete="email"
                                 />
                             </div>
                         </div>
@@ -360,7 +360,7 @@
 
             if (!email) {
                 setFieldError('email', true);
-                showToast('Please enter your email address, ECI number, or phone number to continue.', 'warning', 'Identifier Required');
+                showToast('Please enter your email address to continue.', 'warning', 'Email Required');
                 document.getElementById('email').focus();
                 return false;
             }
@@ -390,7 +390,7 @@
                 setFieldError('password', true);
                 var msg = data?.message || '';
                 if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no account')) {
-                    showToast('Check your email, ECI, or phone number and try again.', 'error', 'Account Not Found');
+                    showToast('Check your email address and try again.', 'error', 'Account Not Found');
                 } else if (msg.toLowerCase().includes('password') || msg.toLowerCase().includes('incorrect') || msg.toLowerCase().includes('invalid')) {
                     showToast('Username or Password Incorrect', 'error', 'Login Failed');
                 } else if (msg.toLowerCase().includes('inactive') || msg.toLowerCase().includes('disabled') || msg.toLowerCase().includes('suspended')) {
@@ -414,7 +414,7 @@
                 var errors = data?.errors || {};
                 if (errors.email) {
                     setFieldError('email', true);
-                    showToast('The identifier field is required and must be a valid email, ECI number, or phone number.', 'warning', 'Invalid Identifier');
+                    showToast('Please enter a valid email address.', 'warning', 'Invalid Email');
                 } else if (errors.password) {
                     setFieldError('password', true);
                     showToast('The password field is required and must meet the minimum length requirement.', 'warning', 'Invalid Password');
