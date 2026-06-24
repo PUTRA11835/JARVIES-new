@@ -32,6 +32,7 @@
     $isAdmin         = $userRole === 1;
     $isCustomerAdmin = $userRole === 3 && session('user.can_view_all_tickets', false);
     $userEmail       = session('user.email', '');
+
 @endphp
 
 {{-- Status Filter Cards --}}
@@ -82,59 +83,6 @@
     </div>
 </div>
 
-{{-- Filters & Search --}}
-<div class="mb-6">
-    <button onclick="toggleSection('filtersSection', 'filtersChevron')"
-            class="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors duration-150 select-none mb-2 group">
-        <svg id="filtersChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
-             class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform duration-200">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
-        <span class="uppercase tracking-wide">Filters &amp; Search</span>
-    </button>
-    <div id="filtersSection" class="overflow-hidden transition-all duration-300" style="max-height: 300px;">
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter By</label>
-                    <select id="filterTypeSelect" onchange="updateFilterOptions()" class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
-                        <option value="">Select Type</option>
-                        <option value="status">Status</option>
-                        <option value="type">Type</option>
-                        <option value="priority">Priority</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Filter Value</label>
-                    <select id="filterValueSelect" disabled class="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white disabled:bg-gray-50">
-                        <option value="">Select Type First</option>
-                    </select>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="text-xs font-semibold text-gray-600 mb-2 block uppercase tracking-wide">Search</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
-                            </svg>
-                        </div>
-                        <input type="text" id="searchInput" placeholder="Search by ID, description, customer..." autocomplete="off"
-                               class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-800 bg-white"
-                               onkeyup="applyFilters()">
-                    </div>
-                </div>
-            </div>
-            <div class="flex gap-3 justify-end mt-4 pt-4 border-t border-gray-100">
-                <button onclick="applyFilters()" class="inline-flex items-center gap-2 px-5 py-2 bg-red-800 text-white text-sm font-semibold rounded-xl hover:bg-red-900 transition-all">
-                    Apply Filters
-                </button>
-                <button onclick="resetFilters()" class="inline-flex items-center gap-2 px-5 py-2 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-300 hover:bg-gray-50 transition-all">
-                    Reset
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 {{-- Pagination --}}
 <div class="flex items-center justify-between mb-4">
@@ -165,13 +113,103 @@
             <table class="w-full text-sm border-collapse" style="min-width: 900px;">
                 <thead class="sticky top-0 z-10 bg-gray-50">
                     <tr>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20" style="min-width:110px;">Last Update</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20" style="min-width:120px; left:110px;">Ticket</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:280px;">Description</th>
-                        <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Date</th>
+                        {{-- Last Update: sortable --}}
+                        <th onclick="sortTickets('last_update')"
+                            class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200 sticky left-0 bg-gray-50 z-20 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                            style="min-width:110px;">
+                            <div class="flex items-center gap-1">
+                                <span>Last Update</span>
+                                <span id="sort-icon-last_update" class="text-red-500 font-bold">↓</span>
+                            </div>
+                        </th>
+
+                        {{-- Ticket: sort + filter panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky bg-gray-50 z-20 relative" style="min-width:120px; left:110px;">
+                            <button type="button" onclick="toggleColPanel('ticket', event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Ticket</span>
+                                <svg id="ticketCaret" class="w-3 h-3 text-gray-400 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="ticketFilterIcon" class="w-3 h-3 text-gray-300 transition-colors shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                                <span id="sort-icon-ticket_number" class="text-gray-300 font-bold text-xs">⇅</span>
+                            </button>
+                            <div id="ticketPanel" class="col-filter-panel hidden fixed bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:230px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search ticket no.</label>
+                                <input type="text" id="ticketFilterInput" placeholder="e.g. TKT-001…"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                       oninput="colFilters.ticketNumber=this.value; applyColFilters();" onclick="event.stopPropagation()">
+                                <div class="border-t border-gray-100 mt-3 pt-2">
+                                    <span class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sort</span>
+                                    <div class="flex gap-2">
+                                        <button type="button" id="ticketSortAsc" onclick="setTicketSort('asc')"
+                                                class="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">↑ Ascending</button>
+                                        <button type="button" id="ticketSortDesc" onclick="setTicketSort('desc')"
+                                                class="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50 transition-colors">↓ Descending</button>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearTicketFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeColPanel('ticket')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- Description: text search panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 relative" style="min-width:280px;">
+                            <button type="button" onclick="toggleColPanel('desc', event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Description</span>
+                                <svg id="descCaret" class="w-3 h-3 text-gray-400 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="descFilterIcon" class="w-3 h-3 text-gray-300 transition-colors shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="descPanel" class="col-filter-panel hidden fixed bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:260px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search description</label>
+                                <input type="text" id="descFilterInput" placeholder="Type keyword…"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                       oninput="colFilters.description=this.value; applyColFilters();" onclick="event.stopPropagation()">
+                                <p class="text-[10px] text-gray-400 mt-1.5">Matches any ticket whose description contains this text.</p>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearColFilter('description','descFilterInput')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="closeColPanel('desc')" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Done</button>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- Date: date range panel --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 relative" style="min-width:100px;">
+                            <button type="button" onclick="toggleColPanel('date', event)"
+                                    class="w-full flex items-center gap-1.5 px-3 py-2.5 hover:bg-gray-100 transition-colors">
+                                <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Date</span>
+                                <svg id="dateCaret" class="w-3 h-3 text-gray-400 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                                <svg id="dateFilterIcon" class="w-3 h-3 text-gray-300 transition-colors shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd"/></svg>
+                            </button>
+                            <div id="datePanel" class="col-filter-panel hidden fixed bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:240px;">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+                                    <input type="date" id="dateFilterFrom" onclick="event.stopPropagation()"
+                                           class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                                <div class="mt-2">
+                                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+                                    <input type="date" id="dateFilterTo" onclick="event.stopPropagation()"
+                                           class="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
+                                </div>
+                                <p id="dateFilterError" class="hidden text-xs text-red-500 mt-1">"To" must be on/after "From".</p>
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearDateColFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    <button type="button" onclick="applyDateColFilter()" class="px-3 py-1.5 text-xs text-white bg-red-700 hover:bg-red-800 rounded-md">Apply</button>
+                                </div>
+                            </div>
+                        </th>
+
+                        {{-- Status --}}
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:150px;">Status</th>
+
+                        {{-- Priority --}}
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Priority</th>
+
+                        {{-- Type --}}
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Type</th>
+
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:100px;">Man Days</th>
                         <th class="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap border-b border-gray-200" style="min-width:130px;">Created By</th>
                     </tr>
@@ -212,11 +250,11 @@
 @push('styles')
 <style>
 /* Collapsible sections */
-#statsSection, #filtersSection {
+#statsSection {
     transition: max-height 0.25s ease, opacity 0.2s ease;
 }
-#statsSection[style*="max-height: 0"], #filtersSection[style*="max-height: 0"] { opacity: 0; }
-#statsChevron, #filtersChevron { transition: transform 0.2s ease; }
+#statsSection[style*="max-height: 0"] { opacity: 0; }
+#statsChevron { transition: transform 0.2s ease; }
 
 /* Table rows */
 #ticketsListBody tr { cursor: pointer; transition: background 0.15s; }
@@ -265,6 +303,11 @@
 
 /* Stat card active */
 .stat-card-active { border-color: #991b1b !important; border-width: 2px !important; }
+
+/* Column filter panels */
+.col-filter-panel {
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+}
 </style>
 @endpush
 
@@ -279,6 +322,11 @@ let currentPage     = 1;
 let itemsPerPage    = 20;
 let totalItems      = 0;
 let totalPages      = 0;
+
+let colFilters  = { ticketNumber: '', description: '', dateFrom: '', dateTo: '' };
+let sortField   = 'last_update';
+let sortDir     = 'desc';
+let openPanel   = null;
 
 const FETCH_URL         = '{{ route("tickets.ajax.fetch") }}';
 const CSRF_TOKEN        = '{{ csrf_token() }}';
@@ -320,12 +368,8 @@ function startPolling() {
 
             if (!hasChanges) return;
             allTickets = fresh;
-            const freshBase = getScopedTickets();
-            filteredTickets = currentFilter === 'all'
-                ? freshBase
-                : freshBase.filter(t => t.status === currentFilter);
             updateStats();
-            renderTickets();
+            applyColFilters();
         } catch {}
     }, 30000);
 }
@@ -342,12 +386,9 @@ async function loadTickets() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.success && data.data) {
-            allTickets = data.data.sort((a, b) =>
-                new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at)
-            );
-            filteredTickets = getScopedTickets();
+            allTickets = data.data;
             updateStats();
-            renderTickets();
+            applyColFilters();
         } else {
             showEmpty();
         }
@@ -513,70 +554,229 @@ function filterTickets(status) {
         if (el) { el.classList.remove('border', 'border-gray-100'); el.classList.add('border-2', 'border-red-600', 'shadow-md'); }
     }
 
-    const base = getScopedTickets();
-    filteredTickets = status === 'all' ? base : base.filter(t => t.status === status);
-    currentPage = 1;
-    renderTickets();
-}
-
-function updateFilterOptions() {
-    const filterType   = document.getElementById('filterTypeSelect').value;
-    const filterSelect = document.getElementById('filterValueSelect');
-    filterSelect.disabled = !filterType;
-    filterSelect.innerHTML = '<option value="">Select value</option>';
-
-    const options = {
-        'status':   ['open', 'in process', 'waiting on customer', 'waiting on 3rd party', 'waiting to confirmation', 'hold', 'cancelled', 'closed'],
-        'type':     ['Incident', 'Service Request', 'Change Request', 'Consult'],
-        'priority': ['Very High', 'High', 'Medium', 'Low'],
-    };
-    if (filterType && options[filterType]) {
-        options[filterType].forEach(opt => {
-            filterSelect.innerHTML += `<option value="${opt}">${opt}</option>`;
-        });
-    }
-}
-
-function applyFilters() {
-    const filterType  = document.getElementById('filterTypeSelect').value;
-    const filterValue = document.getElementById('filterValueSelect').value;
-    const searchTerm  = document.getElementById('searchInput').value.toLowerCase();
-
-    filteredTickets = getScopedTickets().filter(ticket => {
-        const matchesSearch = !searchTerm ||
-            String(ticket.ticket_id || '').includes(searchTerm) ||
-            (ticket.ticket_number || '').toLowerCase().includes(searchTerm) ||
-            (ticket.description || '').toLowerCase().includes(searchTerm) ||
-            (ticket.customer?.customer_name || '').toLowerCase().includes(searchTerm) ||
-            (ticket.customer?.company_name || '').toLowerCase().includes(searchTerm);
-
-        let matchesFilter = true;
-        if (filterType && filterValue) {
-            const fieldKey = filterType === 'priority' ? 'ticket_priority'
-                           : filterType === 'type'     ? 'ticket_type'
-                           : 'status';
-            matchesFilter = ticket[fieldKey] === filterValue;
-        }
-
-        const matchesStatus = currentFilter === 'all' || ticket.status === currentFilter;
-        return matchesSearch && matchesFilter && matchesStatus;
-    });
-
-    currentPage = 1;
-    renderTickets();
+    applyColFilters();
 }
 
 function resetFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('filterTypeSelect').value = '';
-    document.getElementById('filterValueSelect').innerHTML = '<option value="">Select Type First</option>';
-    document.getElementById('filterValueSelect').disabled = true;
+    colFilters = { ticketNumber: '', description: '', dateFrom: '', dateTo: '' };
+    const ticketInput = document.getElementById('ticketFilterInput');
+    if (ticketInput) ticketInput.value = '';
+    const descInput = document.getElementById('descFilterInput');
+    if (descInput) descInput.value = '';
+    const dateFrom  = document.getElementById('dateFilterFrom');
+    if (dateFrom)  dateFrom.value = '';
+    const dateTo    = document.getElementById('dateFilterTo');
+    if (dateTo)    dateTo.value = '';
+
     currentFilter = 'all';
     filterTickets('all');
 }
 
+// ==================== SORT ====================
+function sortTickets(field) {
+    if (sortField === field) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortField = field;
+        sortDir   = field === 'last_update' ? 'desc' : 'asc';
+    }
+    updateSortIcons();
+    updateTicketSortButtons();
+    applyColFilters();
+}
+
+function updateSortIcons() {
+    ['last_update', 'ticket_number'].forEach(f => {
+        const el = document.getElementById('sort-icon-' + f);
+        if (!el) return;
+        if (f === sortField) {
+            el.textContent = sortDir === 'asc' ? '↑' : '↓';
+            el.className   = 'text-red-500 font-bold';
+        } else {
+            el.textContent = '⇅';
+            el.className   = 'text-gray-300';
+        }
+    });
+}
+
+function sortTicketsList(list) {
+    return [...list].sort((a, b) => {
+        let va, vb;
+        if (sortField === 'last_update') {
+            va = new Date(a.last_message_at || a.created_at);
+            vb = new Date(b.last_message_at || b.created_at);
+        } else {
+            va = parseInt((a.ticket_number || '').replace(/\D/g, '')) || 0;
+            vb = parseInt((b.ticket_number || '').replace(/\D/g, '')) || 0;
+        }
+        if (va < vb) return sortDir === 'asc' ? -1 :  1;
+        if (va > vb) return sortDir === 'asc' ?  1 : -1;
+        return 0;
+    });
+}
+
+// ==================== COL FILTER PANELS ====================
+function toggleColPanel(name, event) {
+    if (event) event.stopPropagation();
+    if (openPanel === name) { closeAllPanels(); return; }
+    closeAllPanels();
+    const panel = document.getElementById(name + 'Panel');
+    if (!panel) return;
+
+    // Position as fixed relative to the trigger button
+    const btn  = event ? event.currentTarget : null;
+    if (btn) {
+        const rect = btn.getBoundingClientRect();
+        panel.style.top  = (rect.bottom + 4) + 'px';
+        panel.style.left = rect.left + 'px';
+    }
+
+    panel.classList.remove('hidden');
+
+    // Clamp to viewport edges after render
+    requestAnimationFrame(() => {
+        const pr = panel.getBoundingClientRect();
+        // Clamp right edge
+        if (pr.right > window.innerWidth - 8) {
+            panel.style.left = Math.max(8, window.innerWidth - pr.width - 8) + 'px';
+        }
+        // Clamp bottom edge: jika panel melebihi viewport, buka ke atas button
+        if (btn && pr.bottom > window.innerHeight - 8) {
+            const rect = btn.getBoundingClientRect();
+            panel.style.top = Math.max(8, rect.top - pr.height - 4) + 'px';
+        }
+    });
+
+    const caret = document.getElementById(name + 'Caret');
+    if (caret) caret.style.transform = 'rotate(180deg)';
+    openPanel = name;
+}
+
+function closeColPanel(name) {
+    const panel = document.getElementById(name + 'Panel');
+    if (panel) panel.classList.add('hidden');
+    const caret = document.getElementById(name + 'Caret');
+    if (caret) caret.style.transform = 'rotate(0deg)';
+    if (openPanel === name) openPanel = null;
+}
+
+function closeAllPanels() {
+    ['ticket', 'desc', 'date'].forEach(n => closeColPanel(n));
+}
+
+document.addEventListener('click', function() { closeAllPanels(); });
+document.querySelector('.overflow-auto')?.addEventListener('scroll', function() { closeAllPanels(); }, { passive: true });
+
+// ==================== COL FILTER LOGIC ====================
+function applyColFilters() {
+    let base = getScopedTickets();
+
+    // Status card
+    if (currentFilter !== 'all') {
+        base = base.filter(t => t.status === currentFilter);
+    }
+
+    // Column: ticket number
+    if (colFilters.ticketNumber) {
+        const q = colFilters.ticketNumber.toLowerCase();
+        base = base.filter(t => (t.ticket_number || '').toLowerCase().includes(q));
+    }
+    // Column: description
+    if (colFilters.description) {
+        const q = colFilters.description.toLowerCase();
+        base = base.filter(t => (t.description || '').toLowerCase().includes(q));
+    }
+    // Column: date range
+    if (colFilters.dateFrom) {
+        base = base.filter(t => (t.created_at || '').slice(0, 10) >= colFilters.dateFrom);
+    }
+    if (colFilters.dateTo) {
+        base = base.filter(t => (t.created_at || '').slice(0, 10) <= colFilters.dateTo);
+    }
+    filteredTickets = sortTicketsList(base);
+    currentPage = 1;
+    renderTickets();
+    updateFilterIcons();
+}
+
+function setTicketSort(dir) {
+    sortField = 'ticket_number';
+    sortDir   = dir;
+    updateSortIcons();
+    updateTicketSortButtons();
+    applyColFilters();
+}
+
+function updateTicketSortButtons() {
+    const asc  = document.getElementById('ticketSortAsc');
+    const desc = document.getElementById('ticketSortDesc');
+    if (!asc || !desc) return;
+    const isTicket = sortField === 'ticket_number';
+    asc.classList.toggle('bg-red-700',    isTicket && sortDir === 'asc');
+    asc.classList.toggle('text-white',    isTicket && sortDir === 'asc');
+    asc.classList.toggle('border-red-700',isTicket && sortDir === 'asc');
+    desc.classList.toggle('bg-red-700',    isTicket && sortDir === 'desc');
+    desc.classList.toggle('text-white',    isTicket && sortDir === 'desc');
+    desc.classList.toggle('border-red-700',isTicket && sortDir === 'desc');
+}
+
+function clearTicketFilter() {
+    colFilters.ticketNumber = '';
+    const el = document.getElementById('ticketFilterInput');
+    if (el) el.value = '';
+    sortField = 'last_update';
+    sortDir   = 'desc';
+    updateSortIcons();
+    updateTicketSortButtons();
+    applyColFilters();
+}
+
+function clearColFilter(field, inputId) {
+    colFilters[field] = '';
+    const el = document.getElementById(inputId);
+    if (el) el.value = '';
+    applyColFilters();
+}
+
+function applyDateColFilter() {
+    const from = document.getElementById('dateFilterFrom').value;
+    const to   = document.getElementById('dateFilterTo').value;
+    const err  = document.getElementById('dateFilterError');
+    if (from && to && to < from) { err.classList.remove('hidden'); return; }
+    err.classList.add('hidden');
+    colFilters.dateFrom = from;
+    colFilters.dateTo   = to;
+    closeColPanel('date');
+    applyColFilters();
+}
+
+function clearDateColFilter() {
+    colFilters.dateFrom = '';
+    colFilters.dateTo   = '';
+    document.getElementById('dateFilterFrom').value = '';
+    document.getElementById('dateFilterTo').value   = '';
+    document.getElementById('dateFilterError').classList.add('hidden');
+    applyColFilters();
+}
+
+
+function updateFilterIcons() {
+    const map = {
+        ticket:   { icon: 'ticketFilterIcon',   active: !!colFilters.ticketNumber },
+        desc:     { icon: 'descFilterIcon',     active: !!colFilters.description },
+        date:     { icon: 'dateFilterIcon',     active: !!(colFilters.dateFrom || colFilters.dateTo) },
+    };
+    Object.values(map).forEach(({ icon, active }) => {
+        const el = document.getElementById(icon);
+        if (!el) return;
+        el.classList.toggle('text-red-500', active);
+        el.classList.toggle('text-gray-300', !active);
+    });
+    updateTicketSortButtons();
+}
+
 // ==================== COLLAPSIBLE ====================
-const _sectionOpen = { statsSection: true, filtersSection: true };
+const _sectionOpen = { statsSection: true };
 
 function toggleSection(sectionId, chevronId) {
     const section = document.getElementById(sectionId);

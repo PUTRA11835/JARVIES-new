@@ -351,15 +351,6 @@
             {{-- Collapsible compose content --}}
             <div id="replyComposeInner" style="max-height:600px;overflow:hidden;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
-                {{-- To row (email channel only, read-only) --}}
-                @if(($ticket->email_thread_id || $ticket->channel === 'email') && session('user.email'))
-                <div class="px-4 pt-1.5">
-                    <div class="flex items-center gap-2 text-xs text-gray-500 px-2 py-1 border-b border-gray-100">
-                        <span class="font-semibold text-gray-500 w-5 shrink-0">To</span>
-                        <span class="text-gray-700">{{ session('user.email') }}</span>
-                    </div>
-                </div>
-                @endif
 
                 {{-- CC row (email channel only) --}}
                 @if($ticket->email_thread_id || $ticket->channel === 'email')
@@ -587,15 +578,6 @@
                         Close Ticket
                     </button>
 
-                    {{-- Cancel Ticket --}}
-                    <button onclick="customerCancelTicket()"
-                            class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border transition-all
-                                   bg-red-50 text-red-600 border-red-200 hover:bg-red-100">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                        Cancel Ticket
-                    </button>
                 </div>
                 @endif
 
@@ -818,15 +800,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const attachGroup = document.createElement('span');
         attachGroup.className = 'ql-formats';
-        attachGroup.innerHTML = `
-            <button type="button" title="Attach File"
-                    onclick="document.getElementById('attachmentInput').click()"
-                    style="width:auto;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;border-radius:3px;">
-                <svg style="width:12px;height:12px;color:#555" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                </svg>
-                <span style="font-size:11px;font-weight:500;color:#444;line-height:1.5">Attachment</span>
-            </button>`;
+
+        const attachBtn = document.createElement('button');
+        attachBtn.type = 'button';
+        attachBtn.title = 'Attach File';
+        attachBtn.style.cssText = 'width:auto;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;border-radius:3px;';
+        attachBtn.innerHTML = `
+            <svg style="width:12px;height:12px;color:#555" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>
+            <span style="font-size:11px;font-weight:500;color:#444;line-height:1.5">Attachment</span>`;
+        attachBtn.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        attachBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('attachmentInput').click();
+        });
+
+        attachGroup.appendChild(attachBtn);
         toolbar.appendChild(attachGroup);
     }
 
@@ -1172,7 +1166,7 @@ function buildJoinBtn(url) {
 }
 
 function createMeetingStartCard(msg, d) {
-    const senderName = escHtml(msg.sender_name || 'Helpdesk');
+    const senderName = 'Helpdesk Support';
     const initials   = senderName.substring(0, 1).toUpperCase();
     const timeStr    = formatFullDate(new Date(msg.created_at));
 
@@ -1225,18 +1219,13 @@ function createMeetingStartCard(msg, d) {
                 ${topicHtml}
                 ${timeBlockHtml}
                 ${joinBtnHtml}
-                <hr class="mc-divider">
-                <div><span class="mc-badge">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    SLA Paused
-                </span></div>
             </div>
         </div>
     </div>`;
 }
 
 function createMeetingEndCard(msg, d) {
-    const senderName    = escHtml(msg.sender_name || 'Helpdesk');
+    const senderName    = 'Helpdesk Support';
     const initials      = senderName.substring(0, 1).toUpperCase();
     const timeStr       = formatFullDate(new Date(msg.created_at));
     const summaryText   = d.summary || msg.message || '';
@@ -1276,7 +1265,7 @@ function createMeetingCard(msg) {
     const d = parseMeetingData(msg);
     if (!d) return null;
 
-    const senderName = escHtml(msg.sender_name || 'Helpdesk');
+    const senderName = 'Helpdesk Support';
     const timeStr    = formatFullDate(new Date(msg.created_at));
     const isEnded    = !!d.ended_at;
     const statusHtml = isEnded
