@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\EcosystemWebhookController;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,6 +18,14 @@ use App\Http\Controllers\Api\TicketController;
 | Format token: base64("{customer_code}|{timestamp}|customer")
 |
 */
+
+// ═══════════════════════════════════════════════════════════════
+// ECOSYSTEM WEBHOOKS — dipanggil Ecosystem setelah validasi staging
+// ═══════════════════════════════════════════════════════════════
+Route::middleware('ecosystem.key')->prefix('ecosystem')->group(function () {
+    Route::post('staging-approved', [EcosystemWebhookController::class, 'stagingApproved']);
+    Route::post('staging-rejected', [EcosystemWebhookController::class, 'stagingRejected']);
+});
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC — tidak butuh token

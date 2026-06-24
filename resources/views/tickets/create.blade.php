@@ -650,8 +650,10 @@ document.getElementById('ticketForm').addEventListener('submit', async function 
         fd.append('body_html',       bodyHtml);
         fd.append('body',            bodyText);
         fd.append('ticket_priority', priority);
-        fd.append('ticket_type',     document.getElementById('ticket_type')?.value || '');
-        fd.append('scale',           document.getElementById('scale')?.value || '');
+        const ticketTypeVal = document.getElementById('ticket_type')?.value;
+        if (ticketTypeVal) fd.append('ticket_type', ticketTypeVal);
+        const scaleVal = document.getElementById('scale')?.value;
+        if (scaleVal) fd.append('scale', scaleVal);
         fd.append('name',   document.getElementById('name').value.trim());
         fd.append('no_hp',  document.getElementById('no_hp').value.trim());
         fd.append('module', document.getElementById('module').value.trim());

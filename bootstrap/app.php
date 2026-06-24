@@ -17,9 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Register custom middleware aliases
         $middleware->alias([
-            'jarvies.auth' => \App\Http\Middleware\JarviesAuth::class,
-            'jarvies.guest' => \App\Http\Middleware\JarviesGuest::class,
-            'api.auth'     => \App\Http\Middleware\ApiAuth::class,
+            'jarvies.auth'   => \App\Http\Middleware\JarviesAuth::class,
+            'jarvies.guest'  => \App\Http\Middleware\JarviesGuest::class,
+            'api.auth'       => \App\Http\Middleware\ApiAuth::class,
+            'ecosystem.key'  => \App\Http\Middleware\CheckEcosystemApiKey::class,
         ]);
 
         // Encrypt cookies for security

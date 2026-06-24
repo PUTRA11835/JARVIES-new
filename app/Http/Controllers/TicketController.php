@@ -285,9 +285,13 @@ class TicketController extends Controller
 
                 $tickets = $ticketQuery->orderByRaw('COALESCE(last_message_at, created_at) DESC')->get();
 
-                // Sertakan staging tickets (belum divalidasi) sebagai "Initial"
+                // Sertakan staging tickets yang belum diproses sebagai "Initial".
+                // Exclude jika ticket_id sudah diset (Ecosystem approve = buat tiket nyata)
+                // atau status sudah bukan unvalidated.
                 $stagingQuery = \App\Models\StagingTicket::where('customer_id', $sessionUser['id'])
-                    ->where('status', 'unvalidated');
+                    ->where(function ($q) {
+                        $q->where('status', 'unvalidated')->whereNull('ticket_id');
+                    });
 
                 if (!$canViewAll) {
                     $stagingQuery->where('submitted_by_email', $sessionUser['email']);
@@ -658,8 +662,6 @@ class TicketController extends Controller
                 // Opsional
                 ['name' => 'sender_name',         'contents' => $senderName ?? ''],
                 ['name' => 'ticket_priority',     'contents' => $validated['ticket_priority'] ?? 'Medium'],
-                ['name' => 'ticket_type',         'contents' => $validated['ticket_type'] ?? ''],
-                ['name' => 'scale',               'contents' => $validated['scale'] ?? ''],
                 ['name' => 'channel',             'contents' => 'email'],
             ];
 
@@ -679,8 +681,8 @@ class TicketController extends Controller
                 ];
             }
 
-            // Optional fields
-            foreach (['name', 'no_hp', 'module', 'client'] as $field) {
+            // Optional fields — hanya dikirim kalau ada nilainya
+            foreach (['name', 'no_hp', 'module', 'client', 'ticket_type', 'scale'] as $field) {
                 if (!empty($validated[$field])) {
                     $multipart[] = ['name' => $field, 'contents' => $validated[$field]];
                 }

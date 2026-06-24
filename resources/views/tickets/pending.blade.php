@@ -40,10 +40,12 @@
             'approved'    => ['bg' => 'bg-green-50 border-green-200',  'badge' => 'bg-green-100 text-green-700',  'label' => 'Approved'],
             'rejected'    => ['bg' => 'bg-red-50 border-red-200',      'badge' => 'bg-red-100 text-red-700',      'label' => 'Rejected'],
         ];
-        $cfg = $statusConfig[$s->status] ?? $statusConfig['unvalidated'];
+        // Jika ticket_id sudah diset tapi status belum diupdate Ecosystem, anggap approved
+        $effectiveStatus = ($s->status === 'unvalidated' && $s->ticket_id) ? 'approved' : $s->status;
+        $cfg = $statusConfig[$effectiveStatus] ?? $statusConfig['unvalidated'];
     @endphp
     @php
-        $href = match($s->status) {
+        $href = match($effectiveStatus) {
             'approved' => $s->ticket_id ? url('/tickets/' . $s->ticket_id) : null,
             'rejected' => null,
             default    => url('/tickets/staging/' . $s->id),
@@ -54,11 +56,11 @@
 
         {{-- Icon --}}
         <div class="mt-0.5 shrink-0">
-            @if($s->status === 'approved')
+            @if($effectiveStatus === 'approved')
                 <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-            @elseif($s->status === 'rejected')
+            @elseif($effectiveStatus === 'rejected')
                 <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
@@ -74,13 +76,13 @@
             <div class="flex items-center gap-2 flex-wrap mb-1">
                 <span class="font-semibold text-gray-900 text-sm">{{ $s->description }}</span>
                 <span class="text-xs px-2 py-0.5 rounded-full font-semibold {{ $cfg['badge'] }}">{{ $cfg['label'] }}</span>
-                @if($s->status === 'unvalidated')
+                @if($effectiveStatus === 'unvalidated')
                     <span class="text-xs text-gray-400 italic">Click to view detail →</span>
-                @elseif($s->status === 'approved' && $s->ticket_id)
+                @elseif($effectiveStatus === 'approved' && $s->ticket_id)
                     <span class="text-xs font-semibold text-red-700">View Ticket #{{ $s->ticket?->ticket_number ?? $s->ticket_id }} →</span>
                 @endif
             </div>
-            @if($s->status === 'rejected' && $s->rejection_reason)
+            @if($effectiveStatus === 'rejected' && $s->rejection_reason)
                 <p class="text-xs text-red-600 mb-1"><span class="font-semibold">Reason:</span> {{ $s->rejection_reason }}</p>
             @endif
             <div class="flex items-center gap-3 text-xs text-gray-400">
