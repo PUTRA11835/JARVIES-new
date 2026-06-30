@@ -446,13 +446,13 @@ function createTicketRow(ticket) {
     const href      = isStaging ? `/tickets/staging/${ticket.staging_id}` : `/tickets/${ticket.ticket_id}`;
 
     const lastActivity = new Date(ticket.last_message_at || ticket.created_at);
-    const createdAt    = new Date(ticket.created_at);
+    const startDate     = new Date(ticket.start_date || ticket.created_at);
     const fmt   = d => d.toLocaleDateString('en-GB', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' });
     const fmtDT = d => d.toLocaleString('en-GB',    { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
     const lastUpdateStr   = relativeTime(lastActivity);
     const lastUpdateTitle = fmtDT(lastActivity);
-    const dateStr         = fmt(createdAt);
+    const dateStr         = fmt(startDate);
 
     // Unread: agent replied more recently than customer's last reply
     const lastAgent    = ticket.last_agent_reply_at  ? new Date(ticket.last_agent_reply_at)  : null;
@@ -716,12 +716,12 @@ function applyColFilters() {
         const q = colFilters.description.toLowerCase();
         base = base.filter(t => (t.description || '').toLowerCase().includes(q));
     }
-    // Column: date range
+    // Column: date range (filters on the same date shown in the DATE column: start_date, fallback created_at)
     if (colFilters.dateFrom) {
-        base = base.filter(t => (t.created_at || '').slice(0, 10) >= colFilters.dateFrom);
+        base = base.filter(t => (t.start_date || t.created_at || '').slice(0, 10) >= colFilters.dateFrom);
     }
     if (colFilters.dateTo) {
-        base = base.filter(t => (t.created_at || '').slice(0, 10) <= colFilters.dateTo);
+        base = base.filter(t => (t.start_date || t.created_at || '').slice(0, 10) <= colFilters.dateTo);
     }
     filteredTickets = sortTicketsList(base);
     currentPage = 1;
