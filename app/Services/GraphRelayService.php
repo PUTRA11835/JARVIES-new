@@ -404,8 +404,12 @@ class GraphRelayService
             return null;
         }
 
-        $subject = 'Ticket #' . ($ticket->ticket_number ?? $ticket->ticket_id)
-            . ': ' . mb_substr($ticket->description ?? '', 0, 80);
+        // Subject HARUS identik EcoSystem (prefix [JARVIES], spasi " : ", mb_substr) agar
+        // subject konsisten dari arah manapun. Dipakai saat membuat thread baru
+        // (customer chat duluan dari Jarvies); pada reply thread existing subject
+        // diwarisi otomatis oleh Graph (createReplyDraft tidak mem-PATCH subject).
+        $subject = '[JARVIES] #' . ($ticket->ticket_number ?? $ticket->ticket_id)
+            . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
         // Bungkus pesan dengan atribusi pengirim (format sama dengan EcoSystem relay)
         $wrappedBody = '<p><em>[Message from ' . htmlspecialchars($senderName) . ' via Jarvies]</em></p>'

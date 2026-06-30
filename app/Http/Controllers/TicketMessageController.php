@@ -225,8 +225,9 @@ class TicketMessageController extends Controller
                 return;
             }
 
-            // Bangun subject dari deskripsi tiket
-            $subject = 'Ticket #' . $ticket->ticket_number . ': ' . ($ticket->description ? substr($ticket->description, 0, 80) : 'Update');
+            // Bangun subject — HARUS identik EcoSystem agar threading & subjectTopicMatches konsisten
+            // (prefix [JARVIES], spasi mengelilingi " : ", mb_substr) dari arah manapun.
+            $subject = '[JARVIES] #' . $ticket->ticket_number . ' : ' . mb_substr($ticket->description ?? '', 0, 80);
 
             // In-Reply-To = internetMessageId dari pesan email terakhir di tiket ini
             // (bukan email_thread_id yang isinya conversationId dari Graph)

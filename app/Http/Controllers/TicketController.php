@@ -85,6 +85,62 @@ class TicketController extends Controller
     }
 
     /**
+     * Apakah customer (role 3) yang login boleh melihat SEMUA tiket company-nya.
+     * Admin = true (can_view_all_tickets), Member = false (hanya tiket sendiri).
+     * Default true untuk akun lama tanpa flag.
+     */
+    private function customerCanViewAll(array $sessionUser): bool
+    {
+        if (array_key_exists('can_view_all_tickets', $sessionUser)) {
+            return (bool) $sessionUser['can_view_all_tickets'];
+        }
+
+        // Fallback: baca langsung dari auth_users bila session belum membawa flag.
+        $authUser = DB::table('auth_users')
+            ->where('customer_id', $sessionUser['id'])
+            ->where('email', $sessionUser['email'])
+            ->first();
+
+        return $authUser ? (bool) $authUser->can_view_all_tickets : true;
+    }
+
+    /**
+     * Terapkan filter visibility tiket untuk customer ke query Eloquent/Builder.
+     * - customer_id WAJIB cocok (batas company).
+     * - Member dibatasi ke tiket yang ia submit sendiri (submitted_by_email).
+     * Tiket email dari domain company yang belum terdaftar sebagai contact sudah
+     * ter-attribute ke customer_id company yang benar oleh EcoSystem saat intake,
+     * sehingga Admin tetap melihatnya lewat filter customer_id.
+     */
+    private function applyCustomerTicketVisibility($query, array $sessionUser, string $column = 'submitted_by_email')
+    {
+        $query->where('customer_id', $sessionUser['id']);
+
+        if (!$this->customerCanViewAll($sessionUser)) {
+            $query->where($column, $sessionUser['email']);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Apakah customer boleh mengakses satu tiket spesifik (detail / reply / mandays).
+     * Admin: semua tiket company. Member: hanya tiket yang ia submit.
+     */
+    private function customerCanAccessTicket(array $sessionUser, Ticket $ticket): bool
+    {
+        if ($ticket->customer_id != $sessionUser['id']) {
+            return false;
+        }
+
+        if ($this->customerCanViewAll($sessionUser)) {
+            return true;
+        }
+
+        return strcasecmp((string) $ticket->submitted_by_email, (string) ($sessionUser['email'] ?? '')) === 0;
+    }
+
+    /**
      * Display tickets page (HTML view)
      */
     public function index()
@@ -105,7 +161,10 @@ class TicketController extends Controller
 
         try {
             $service  = new StagingTicketService();
-            $stagings = $service->getByCustomer($user['id']);
+            $stagings = $service->getByCustomer(
+                $user['id'],
+                $this->customerCanViewAll($user) ? null : ($user['email'] ?? null)
+            );
         } catch (\Exception $e) {
             Log::error('pendingPage error', ['error' => $e->getMessage()]);
             $stagings = collect();
@@ -174,7 +233,10 @@ class TicketController extends Controller
 
         try {
             $service  = new StagingTicketService();
-            $stagings = $service->getByCustomer($user['id']);
+            $stagings = $service->getByCustomer(
+                $user['id'],
+                $this->customerCanViewAll($user) ? null : ($user['email'] ?? null)
+            );
 
             $data = $stagings->map(fn ($s) => [
                 'id'               => $s->id,
@@ -269,12 +331,7 @@ class TicketController extends Controller
             } elseif ($sessionUser['role']['id'] == 3) {
                 Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
 
-                $authUser = DB::table('auth_users')
-                    ->where('customer_id', $sessionUser['id'])
-                    ->where('email', $sessionUser['email'])
-                    ->first();
-
-                $canViewAll = $authUser ? (bool) $authUser->can_view_all_tickets : true;
+                $canViewAll = $this->customerCanViewAll($sessionUser);
 
                 $ticketQuery = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $sessionUser['id']);
@@ -921,10 +978,10 @@ class TicketController extends Controller
                 $customerId = $sessionUser['id'];
                 Log::info('My Tickets - Filtering for customer', ['customer_id' => $customerId]);
                 
-                $tickets = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
-                    ->where('customer_id', $customerId)
-                    ->orderBy('created_at', 'desc')
-                    ->get();
+                $myTicketsQuery = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
+                    ->orderBy('created_at', 'desc');
+                $this->applyCustomerTicketVisibility($myTicketsQuery, $sessionUser);
+                $tickets = $myTicketsQuery->get();
 
             // Employee: cek DSM dan tampilkan tiket yang mereka handle
             } elseif ($sessionUser['role']['id'] == 2) {
@@ -1062,7 +1119,7 @@ class TicketController extends Controller
             ->where('customer_id', $sessionUser['id'])
             ->first();
 
-        if (!$ticket) {
+        if (!$ticket || !$this->customerCanAccessTicket($sessionUser, $ticket)) {
             return redirect()->route('tickets.index')->with('error', 'Ticket not found.');
         }
 
@@ -1367,7 +1424,7 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
             
             // Customer can only update their own tickets
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
+            if ($sessionUser['role']['id'] == 3 && !$this->customerCanAccessTicket($sessionUser, $ticket)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You can only update your own tickets'
@@ -1441,7 +1498,7 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
 
             // Customer can only view their own ticket history
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
+            if ($sessionUser['role']['id'] == 3 && !$this->customerCanAccessTicket($sessionUser, $ticket)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'You can only view your own ticket history'
@@ -1490,7 +1547,7 @@ class TicketController extends Controller
                 ->findOrFail($id);
 
             // Customer hanya bisa lihat tiket mereka sendiri
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
+            if ($sessionUser['role']['id'] == 3 && !$this->customerCanAccessTicket($sessionUser, $ticket)) {
                 if (request()->expectsJson()) {
                     return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
                 }
@@ -1563,8 +1620,8 @@ class TicketController extends Controller
 
             $ticket = Ticket::findOrFail($id);
 
-            // Customer hanya bisa akses tiket miliknya
-            if ($sessionUser['role']['id'] == 3 && $ticket->customer_id != $sessionUser['id']) {
+            // Customer hanya bisa akses tiket miliknya (Member: hanya tiket sendiri)
+            if ($sessionUser['role']['id'] == 3 && !$this->customerCanAccessTicket($sessionUser, $ticket)) {
                 return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
             }
 
@@ -1815,8 +1872,8 @@ class TicketController extends Controller
 
             $ticket = Ticket::findOrFail($id);
 
-            // Customer hanya bisa reply ke tiket miliknya
-            if ($roleId == 3 && $ticket->customer_id != $sessionUser['id']) {
+            // Customer hanya bisa reply ke tiket miliknya (Member: hanya tiket sendiri)
+            if ($roleId == 3 && !$this->customerCanAccessTicket($sessionUser, $ticket)) {
                 return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
             }
 
@@ -2138,9 +2195,9 @@ class TicketController extends Controller
                 ->where('status', $status)
                 ->orderBy('created_at', 'desc');
 
-            // Customer hanya bisa lihat tiket mereka sendiri
+            // Customer: Admin lihat semua tiket company, Member hanya tiket miliknya
             if ($sessionUser['role']['id'] == 3) {
-                $query->where('customer_id', $sessionUser['id']);
+                $this->applyCustomerTicketVisibility($query, $sessionUser);
             }
             // Admin (role_id = 1) bisa lihat semua
             // Employee dengan DSM juga bisa lihat semua (sudah dicheck di atas)
@@ -2186,9 +2243,9 @@ class TicketController extends Controller
 
             $query = Ticket::query();
 
-            // Customer hanya bisa lihat statistik tiket mereka sendiri
+            // Customer: Admin lihat semua statistik company, Member hanya tiket miliknya
             if ($sessionUser['role']['id'] == 3) {
-                $query->where('customer_id', $sessionUser['id']);
+                $this->applyCustomerTicketVisibility($query, $sessionUser);
             }
             // Admin (role_id = 1) dan Employee dengan DSM bisa lihat semua statistik
 

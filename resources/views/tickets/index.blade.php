@@ -86,10 +86,21 @@
 
 {{-- Pagination --}}
 <div class="flex items-center justify-between mb-4">
-    <span class="text-sm text-gray-500">
-        <span id="currentRangeStart">1</span>-<span id="currentRangeEnd">20</span>
-        of <span id="totalItems">0</span> tickets
-    </span>
+    <div class="flex items-center gap-4">
+        @if($isCustomerAdmin)
+        {{-- Scope toggle: My Tickets / All Tickets (customer admin only) --}}
+        <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5">
+            <button type="button" id="scopeBtnMine" onclick="setTicketScope('mine')"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all">My Tickets</button>
+            <button type="button" id="scopeBtnAll" onclick="setTicketScope('all')"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-md transition-all">All Tickets</button>
+        </div>
+        @endif
+        <span class="text-sm text-gray-500">
+            <span id="currentRangeStart">1</span>-<span id="currentRangeEnd">20</span>
+            of <span id="totalItems">0</span> tickets
+        </span>
+    </div>
     <div class="flex items-center gap-1">
         <button onclick="previousPage()" id="btnPrevPage" disabled
                 class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
@@ -317,7 +328,7 @@
 let allTickets      = [];
 let filteredTickets = [];
 let currentFilter   = 'all';
-let ticketScope     = 'mine';   // 'mine' | 'all'  (only relevant for customer admin)
+let ticketScope     = 'all';    // 'mine' | 'all'  (only relevant for customer admin)
 let currentPage     = 1;
 let itemsPerPage    = 20;
 let totalItems      = 0;
@@ -335,6 +346,7 @@ const USER_EMAIL        = '{{ $userEmail }}';
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', function() {
+    updateScopeButtons();
     loadTickets();
     startPolling();
 
@@ -524,6 +536,24 @@ function getScopedTickets() {
     return allTickets.filter(t =>
         (t.submitted_by_email || '').toLowerCase() === USER_EMAIL.toLowerCase()
     );
+}
+
+function setTicketScope(scope) {
+    ticketScope = scope === 'mine' ? 'mine' : 'all';
+    updateScopeButtons();
+    updateStats();
+    applyColFilters();
+}
+
+function updateScopeButtons() {
+    const mine = document.getElementById('scopeBtnMine');
+    const all  = document.getElementById('scopeBtnAll');
+    if (!mine || !all) return;
+    const active   = 'px-3 py-1.5 text-xs font-semibold rounded-md transition-all bg-white text-red-700 shadow-sm';
+    const inactive = 'px-3 py-1.5 text-xs font-semibold rounded-md transition-all text-gray-500 hover:text-gray-700';
+    const isMine   = ticketScope === 'mine';
+    mine.className = isMine ? active : inactive;
+    all.className  = isMine ? inactive : active;
 }
 
 // ==================== FILTERS ====================

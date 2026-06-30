@@ -114,9 +114,10 @@ class StagingTicketService
      * @param  int  $customerId
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function getByCustomer(int $customerId)
+    public function getByCustomer(int $customerId, ?string $submittedByEmail = null)
     {
         return StagingTicket::where('customer_id', $customerId)
+            ->when($submittedByEmail, fn ($q) => $q->where('submitted_by_email', $submittedByEmail))
             ->orderBy('created_at', 'desc')
             ->get();
     }
