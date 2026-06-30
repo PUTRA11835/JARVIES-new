@@ -50,11 +50,11 @@ class DashboardController extends Controller
             ->limit(5)
             ->get(['ticket_id', 'ticket_number', 'description', 'status', 'ticket_priority', 'created_at']);
 
-        // ── Ticket trend — submissions per day for the last 30 days ─────────
+        // ── Ticket trend — per day for the last 30 days, by start_date (fallback created_at) ─
         $trendRows = DB::table('ticket')
             ->where('customer_id', $customerId)
-            ->where('created_at', '>=', now()->subDays(29)->startOfDay())
-            ->selectRaw('DATE(created_at) as day, COUNT(*) as cnt')
+            ->whereRaw('COALESCE(start_date, created_at) >= ?', [now()->subDays(29)->startOfDay()])
+            ->selectRaw('DATE(COALESCE(start_date, created_at)) as day, COUNT(*) as cnt')
             ->groupBy('day')
             ->orderBy('day')
             ->pluck('cnt', 'day');
