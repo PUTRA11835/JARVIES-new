@@ -55,19 +55,19 @@
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Open</p>
                 <p class="text-2xl font-bold text-sky-600" id="openCount">0</p>
             </div>
-            <div id="filterInprocess" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('in process')">
+            <div id="filterInprocess" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('inprocess')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">In Process</p>
                 <p class="text-2xl font-bold text-blue-600" id="processCount">0</p>
             </div>
-            <div id="filterWaitingCustomer" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting on customer')">
+            <div id="filterWaitingCustomer" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_on_customer')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait Customer</p>
                 <p class="text-2xl font-bold text-amber-600" id="waitingCustomerCount">0</p>
             </div>
-            <div id="filterWaiting3rdParty" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting on 3rd party')">
+            <div id="filterWaiting3rdParty" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_on_3rd_party')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait 3rd Party</p>
                 <p class="text-2xl font-bold text-indigo-600" id="waiting3rdPartyCount">0</p>
             </div>
-            <div id="filterWaitingConfirmation" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting to confirmation')">
+            <div id="filterWaitingConfirmation" class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-all duration-200 cursor-pointer" onclick="filterTickets('waiting_to_confirmation')">
                 <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Wait Confirm</p>
                 <p class="text-2xl font-bold text-purple-600" id="waitingConfirmationCount">0</p>
             </div>
@@ -415,10 +415,10 @@ function updateStats() {
     const base = getScopedTickets();
     document.getElementById('totalCount').textContent              = base.length;
     document.getElementById('openCount').textContent               = base.filter(t => t.status === 'open').length;
-    document.getElementById('processCount').textContent            = base.filter(t => t.status === 'in process').length;
-    document.getElementById('waitingCustomerCount').textContent    = base.filter(t => t.status === 'waiting on customer').length;
-    document.getElementById('waiting3rdPartyCount').textContent    = base.filter(t => t.status === 'waiting on 3rd party').length;
-    document.getElementById('waitingConfirmationCount').textContent= base.filter(t => t.status === 'waiting to confirmation').length;
+    document.getElementById('processCount').textContent            = base.filter(t => t.status === 'inprocess').length;
+    document.getElementById('waitingCustomerCount').textContent    = base.filter(t => t.status === 'waiting_on_customer').length;
+    document.getElementById('waiting3rdPartyCount').textContent    = base.filter(t => t.status === 'waiting_on_3rd_party').length;
+    document.getElementById('waitingConfirmationCount').textContent= base.filter(t => t.status === 'waiting_to_confirmation').length;
     document.getElementById('holdCount').textContent               = base.filter(t => t.status === 'hold').length;
     document.getElementById('closedCount').textContent             = base.filter(t => t.status === 'closed').length;
 }
@@ -466,10 +466,10 @@ function createTicketRow(ticket) {
 
     const statusMap = {
         'open':                    { label: 'Open',                  cls: 'bg-sky-50 text-sky-700' },
-        'in process':              { label: 'In Process',            cls: 'bg-blue-50 text-blue-700' },
-        'waiting on customer':     { label: 'Waiting on Customer',   cls: 'bg-amber-50 text-amber-700' },
-        'waiting on 3rd party':    { label: 'Waiting on 3rd Party',  cls: 'bg-indigo-50 text-indigo-700' },
-        'waiting to confirmation': { label: 'Waiting Confirmation',  cls: 'bg-purple-50 text-purple-700' },
+        'inprocess':               { label: 'In Process',            cls: 'bg-blue-50 text-blue-700' },
+        'waiting_on_customer':     { label: 'Waiting on Customer',   cls: 'bg-amber-50 text-amber-700' },
+        'waiting_on_3rd_party':    { label: 'Waiting on 3rd Party',  cls: 'bg-indigo-50 text-indigo-700' },
+        'waiting_to_confirmation': { label: 'Waiting Confirmation',  cls: 'bg-purple-50 text-purple-700' },
         'hold':                    { label: 'Hold',                  cls: 'bg-orange-50 text-orange-700' },
         'cancelled':               { label: 'Cancelled',             cls: 'bg-red-50 text-red-700' },
         'closed':                  { label: 'Closed',                cls: 'bg-green-50 text-green-700' },
@@ -563,10 +563,10 @@ function filterTickets(status) {
     const cardMap = {
         'all':                    'filterAll',
         'open':                   'filterOpen',
-        'in process':             'filterInprocess',
-        'waiting on customer':    'filterWaitingCustomer',
-        'waiting on 3rd party':   'filterWaiting3rdParty',
-        'waiting to confirmation':'filterWaitingConfirmation',
+        'inprocess':              'filterInprocess',
+        'waiting_on_customer':    'filterWaitingCustomer',
+        'waiting_on_3rd_party':   'filterWaiting3rdParty',
+        'waiting_to_confirmation':'filterWaitingConfirmation',
         'hold':                   'filterHold',
         'closed':                 'filterClosed',
     };

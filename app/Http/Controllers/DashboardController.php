@@ -19,10 +19,10 @@ class DashboardController extends Controller
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END)                    as closed,
-                SUM(CASE WHEN status = 'in process' THEN 1 ELSE 0 END)                as in_process,
-                SUM(CASE WHEN status = 'waiting on customer' THEN 1 ELSE 0 END)       as waiting_on_customer,
-                SUM(CASE WHEN status = 'waiting to confirmation' THEN 1 ELSE 0 END)   as waiting_to_confirmation,
-                SUM(CASE WHEN status = 'waiting on 3rd party' THEN 1 ELSE 0 END)      as waiting_on_3rd_party,
+                SUM(CASE WHEN status = 'inprocess' THEN 1 ELSE 0 END)                 as in_process,
+                SUM(CASE WHEN status = 'waiting_on_customer' THEN 1 ELSE 0 END)       as waiting_on_customer,
+                SUM(CASE WHEN status = 'waiting_to_confirmation' THEN 1 ELSE 0 END)   as waiting_to_confirmation,
+                SUM(CASE WHEN status = 'waiting_on_3rd_party' THEN 1 ELSE 0 END)      as waiting_on_3rd_party,
                 SUM(CASE WHEN status = 'hold' THEN 1 ELSE 0 END)                      as hold,
                 SUM(CASE WHEN status != 'closed' AND status != 'cancelled' THEN 1 ELSE 0 END) as open
             ")

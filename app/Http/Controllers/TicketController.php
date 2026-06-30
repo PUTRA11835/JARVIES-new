@@ -1339,7 +1339,7 @@ class TicketController extends Controller
                 $ticket->update([
                     'employee_id' => $confirmation->employee_id,
                     'man_days'    => $confirmation->man_days,
-                    'status'      => 'in process',
+                    'status'      => 'inprocess',
                     'start_date'  => now(),
                 ]);
 
@@ -2033,7 +2033,7 @@ class TicketController extends Controller
 
             try {
                 if (!in_array($ticket->fresh()->status, ['closed', 'cancelled'])) {
-                    $ticket->update(['status' => 'in process']);
+                    $ticket->update(['status' => 'inprocess']);
                 }
             } catch (\Exception $statusEx) {
                 Log::warning('addComment: status update failed (non-blocking)', [
@@ -2069,7 +2069,7 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status'          => 'sometimes|string|in:open,in process,waiting on customer,waiting on 3rd party,waiting to confirmation,hold,cancelled,closed',
+            'status'          => 'sometimes|string|in:open,inprocess,waiting_on_customer,waiting_on_3rd_party,waiting_to_confirmation,hold,cancelled,closed',
             'ticket_priority' => 'sometimes|string|in:Very High,High,Medium,Low',
             'employee_id'     => 'sometimes|nullable|exists:employee,employee_id',
             'man_days'        => 'sometimes|nullable|numeric|min:0|max:9999.99',
@@ -2252,10 +2252,10 @@ class TicketController extends Controller
             $stats = [
                 'total'                   => (clone $query)->count(),
                 'open'                    => (clone $query)->where('status', 'open')->count(),
-                'in_process'              => (clone $query)->where('status', 'in process')->count(),
-                'waiting_on_customer'     => (clone $query)->where('status', 'waiting on customer')->count(),
-                'waiting_on_3rd_party'    => (clone $query)->where('status', 'waiting on 3rd party')->count(),
-                'waiting_to_confirmation' => (clone $query)->where('status', 'waiting to confirmation')->count(),
+                'in_process'              => (clone $query)->where('status', 'inprocess')->count(),
+                'waiting_on_customer'     => (clone $query)->where('status', 'waiting_on_customer')->count(),
+                'waiting_on_3rd_party'    => (clone $query)->where('status', 'waiting_on_3rd_party')->count(),
+                'waiting_to_confirmation' => (clone $query)->where('status', 'waiting_to_confirmation')->count(),
                 'hold'                    => (clone $query)->where('status', 'hold')->count(),
                 'cancelled'               => (clone $query)->where('status', 'cancelled')->count(),
                 'closed'                  => (clone $query)->where('status', 'closed')->count(),
@@ -2489,7 +2489,7 @@ class TicketController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:open,in process,waiting on customer,waiting on 3rd party,waiting to confirmation,hold,cancelled,closed',
+            'status' => 'required|string|in:open,inprocess,waiting_on_customer,waiting_on_3rd_party,waiting_to_confirmation,hold,cancelled,closed',
         ]);
 
         if ($validator->fails()) {

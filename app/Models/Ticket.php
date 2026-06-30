@@ -119,12 +119,12 @@ class Ticket extends Model
     public function getStatusLabelAttribute()
     {
         return match($this->status) {
-            'open'                   => 'Open',
-            'in process'             => 'In Process',
-            'waiting on customer'    => 'Waiting on Customer',
-            'waiting on 3rd party'   => 'Waiting on 3rd Party',
-            'waiting to confirmation'=> 'Waiting to Confirmation',
-            'hold'                   => 'Hold',
+            'open'                    => 'Open',
+            'inprocess'               => 'In Process',
+            'waiting_on_customer'     => 'Waiting on Customer',
+            'waiting_on_3rd_party'    => 'Waiting on 3rd Party',
+            'waiting_to_confirmation' => 'Waiting to Confirmation',
+            'hold'                    => 'Hold',
             'cancelled'              => 'Cancelled',
             'closed'                 => 'Closed',
             default                  => ucfirst($this->status ?? 'Unknown'),
