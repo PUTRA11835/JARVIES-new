@@ -2037,6 +2037,11 @@ class TicketController extends Controller
 
                 foreach ($result['attachments'] as $att) {
                     if (!$att['uploaded']) continue;
+                    // Gambar inline sudah ditangani choke point TicketMessage::booted()
+                    // (disimpan ke public disk + baris TicketAttachment file_path).
+                    // Lewati di sini agar tidak ada baris inline ganda; hanya file
+                    // attachment biasa yang perlu baris proxy Graph.
+                    if (!empty($att['is_inline'])) continue;
                     TicketAttachment::create([
                         'ticket_id'           => $ticket->ticket_id,
                         'message_id'          => $ticketMessage->id,
