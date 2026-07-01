@@ -728,7 +728,9 @@
 
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script>
-const ticketId   = {{ $ticket->ticket_id }};
+const ticketId        = {{ $ticket->ticket_id }};
+const currentUserId   = {{ session('user.id') ?? 'null' }};
+const DRAFT_KEY       = `ticket_draft_${ticketId}_${currentUserId}`;
 const ticketDescription  = @json($ticket->description ?? '');
 const ticketCustomerName = @json(session('user.name') ?? session('user.company_name') ?? 'Customer');
 const ticketCreatedAt    = @json($ticket->created_at->toIso8601String());
@@ -833,6 +835,28 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         this.value = '';
         renderAttachmentPreview();
+    });
+
+    // ── Draft restore ─────────────────────────────────────────────────────────
+    const savedDraft = localStorage.getItem(DRAFT_KEY);
+    if (savedDraft) {
+        try { quill.setContents(JSON.parse(savedDraft), 'api'); }
+        catch { localStorage.removeItem(DRAFT_KEY); }
+    }
+
+    // ── Draft auto-save (debounce 1 s) ────────────────────────────────────────
+    let _draftTimer;
+    quill.on('text-change', function(delta, old, source) {
+        if (source !== 'user') return;
+        clearTimeout(_draftTimer);
+        _draftTimer = setTimeout(function() {
+            const hasText = quill.getText().trim().length > 0;
+            if (hasText) {
+                try { localStorage.setItem(DRAFT_KEY, JSON.stringify(quill.getContents())); } catch {}
+            } else {
+                localStorage.removeItem(DRAFT_KEY);
+            }
+        }, 1000);
     });
 
     renderCcTags();
@@ -1712,6 +1736,7 @@ async function sendReply() {
 
         if (data.success) {
             quill.setContents([]);
+            localStorage.removeItem(DRAFT_KEY);
             resetAttachments();
             await loadMessages();
             refreshIndicator();
