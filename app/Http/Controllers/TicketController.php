@@ -124,8 +124,32 @@ class TicketController extends Controller
     }
 
     /**
+     * Kembalikan ticket_id dari delivery support activities yang DS-nya memiliki contact ini sebagai PIC.
+     * Relasi: delivery_support_customer_pics → delivery_support → delivery_support_activities → ticket_id
+     * Mengembalikan Collection kosong jika contact_id null atau tidak ada DS PIC.
+     */
+    private function getDsPicTicketIds(?int $contactId): \Illuminate\Support\Collection
+    {
+        if (!$contactId) {
+            return collect();
+        }
+
+        return DB::table('delivery_support_customer_pics')
+            ->join('delivery_support_activities',
+                'delivery_support_customer_pics.delivery_support_id',
+                '=',
+                'delivery_support_activities.delivery_support_id')
+            ->where('delivery_support_customer_pics.contact_id', $contactId)
+            ->whereNotNull('delivery_support_activities.ticket_id')
+            ->pluck('delivery_support_activities.ticket_id')
+            ->unique()
+            ->values();
+    }
+
+    /**
      * Apakah customer boleh mengakses satu tiket spesifik (detail / reply / mandays).
      * Admin: semua tiket company. Member: hanya tiket yang ia submit.
+     * DS PIC: boleh akses ticket yang terhubung ke DS di mana mereka terdaftar sebagai PIC.
      */
     private function customerCanAccessTicket(array $sessionUser, Ticket $ticket): bool
     {
@@ -135,6 +159,15 @@ class TicketController extends Controller
 
         if ($this->customerCanViewAll($sessionUser)) {
             return true;
+        }
+
+        // Cek apakah ticket ini terhubung ke DS di mana customer ini menjadi PIC
+        $contactId = isset($sessionUser['contact_id']) ? (int) $sessionUser['contact_id'] : null;
+        if ($contactId) {
+            $dsPicIds = $this->getDsPicTicketIds($contactId);
+            if ($dsPicIds->contains($ticket->ticket_id)) {
+                return true;
+            }
         }
 
         return strcasecmp((string) $ticket->submitted_by_email, (string) ($sessionUser['email'] ?? '')) === 0;
@@ -327,18 +360,35 @@ class TicketController extends Controller
                     ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
                     ->get();
 
-            // Customer: visibility depends on can_view_all_tickets privilege
+            // Customer: visibility depends on can_view_all_tickets privilege + DS PIC
             } elseif ($sessionUser['role']['id'] == 3) {
                 Log::info('Filtering for customer', ['customer_id' => $sessionUser['id']]);
 
                 $canViewAll = $this->customerCanViewAll($sessionUser);
+                $contactId  = isset($sessionUser['contact_id']) ? (int) $sessionUser['contact_id'] : null;
+
+                // Cek apakah customer ini terdaftar sebagai PIC di delivery support manapun
+                $dsPicTicketIds = $this->getDsPicTicketIds($contactId);
+                $hasDsPic       = $dsPicTicketIds->isNotEmpty();
 
                 $ticketQuery = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'employee.basicData', 'members.basicData'])
                     ->where('customer_id', $sessionUser['id']);
 
-                if (!$canViewAll) {
+                if ($hasDsPic) {
+                    // DS PIC mode: tampilkan ticket DS yang ia PIC-kan + ticket yang ia submit sendiri
+                    $ticketQuery->where(function ($q) use ($dsPicTicketIds, $sessionUser) {
+                        $q->whereIn('ticket_id', $dsPicTicketIds)
+                          ->orWhere('submitted_by_email', $sessionUser['email']);
+                    });
+                    Log::info('Customer DS PIC filter applied', [
+                        'contact_id'   => $contactId,
+                        'ds_ticket_ids'=> $dsPicTicketIds->toArray(),
+                    ]);
+                } elseif (!$canViewAll) {
+                    // Fallback logika lama: hanya tiket yang ia submit
                     $ticketQuery->where('submitted_by_email', $sessionUser['email']);
                 }
+                // canViewAll && !hasDsPic → tidak ada tambahan filter (lihat semua ticket company)
 
                 $tickets = $ticketQuery->orderByRaw('COALESCE(last_message_at, created_at) DESC')->get();
 
@@ -350,7 +400,8 @@ class TicketController extends Controller
                         $q->where('status', 'unvalidated')->whereNull('ticket_id');
                     });
 
-                if (!$canViewAll) {
+                // Staging tickets: selalu filter by email (DS PIC hanya berlaku untuk ticket nyata)
+                if ($hasDsPic || !$canViewAll) {
                     $stagingQuery->where('submitted_by_email', $sessionUser['email']);
                 }
 
